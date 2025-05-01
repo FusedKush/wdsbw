@@ -2040,11 +2040,15 @@ export namespace ProgramConfiguration {
         KeyT extends ObjectUtils.SimpleObjectKeyType,
         BaseKeyT extends ObjectUtils.ComplexObjectKeyType,
         TypeStringT extends RawConfigurationOptionValueString | RawConfigurationOptionValueString[],
+        RequiredT extends boolean = false,
         TypeT extends RawConfigurationOptionValue = TypeofType<
             TypeStringT extends RawConfigurationOptionValueString[]
                 ? TypeStringT[number]
                 : TypeStringT
         >,
+        ProgramVarTypeT = (
+
+        ),
         PropertyNamesT extends ObjectUtils.SimpleObjectKeyType = (
             TypeT extends object
                 ? ObjectUtils.SimpleObjectKeyType
@@ -2071,43 +2075,161 @@ export namespace ProgramConfiguration {
         /**
          * The human-readable name of this Configuration Option.
          * 
-         * In contrast to the {@link ConfigurationOption.name name}, the
-         * `key` is used to specify the value of the Configuration Option
-         * in the JSON Configuration File and {@link ConfigurationOptions} `object`.
+         * In contrast to the {@link key}, the `name` is used to specify
+         * the human-readable name of the Configuration Option
+         * displayed to users during the {@link ProgramConfiguration.prototype.setup Interactive Setup}.
          * 
-         * If the Configuration Option is a *Nested Configuration Option*,
-         * the specified `key` will be relative to the Parent Configuration Option
-         * (and any Parent Configuration Options that it may itself have).
+         * @see {@link key}
+         * @see {@link description}
+         */
+        name: string;
+        /**
+         * A human-readable description of the purpose, intent,
+         * and/or usage of the Configuration Option.
+         * 
+         * This description is generally only used when it is displayed
+         * to users during the {@link ProgramConfiguration.prototype.setup Interactive Setup}.
          * 
          * @see {@link ConfigurationOption.name name}
          */
-        name: string;
         description?: string;
 
+        /**
+         * A `string` or an array of `string`s containing
+         * the {@link RawConfigurationOptionValueString allowed type(s)}
+         * of the Configuration Option.
+         * 
+         * This field determines the type(s) of the Configuration Option,
+         * as well as the type of the associated {@link programVar *Simple Program Variable*}
+         * when no {@link conversionFn Program Variable Conversion Function} is specified.
+         * 
+         * For example, `string` indicates that the Configuration Option
+         * must be specified as a `string`, while `[string, number]` indicates
+         * that the Configuration Option may be a `string` or a `number`.
+         */
         type: TypeStringT;
+        /**
+         * Indicates whether the Configuration Option is
+         * *Required* (`true`) or *Optional* (`false`).
+         * 
+         * *Required Configuration Options* must be specified
+         * by the user in order for the program to function properly
+         * and both the Configuration Option and any dependent *Simple Program Variables*
+         * will always be guaranteed to be available at runtime.
+         * In contrast, *Optional Configuration Options* do not have to be
+         * specified by the user and the Configuration Option and any
+         * dependent *Simple Program Variables* may or may not be available at runtime.
+         * 
+         * @see {@link sensitive}
+         */
+        required?: RequiredT;
+        /**
+         * Indicates whether the Configuration Option is
+         * considered to be *Sensitive* or not.
+         * 
+         * *Sensitive Configuration Options* and any dependent *Simple Program Variables*
+         * can be {@link SensitiveProperties.redact redacted} at runtime when being
+         * retrieved using the {@link ProgramConfiguration.prototype.getConfigVars `getConfigVars()`} 
+         * and {@link ProgramConfiguration.prototype.getConfigVars `getConfigVars()`} methods,
+         * obfuscating their values before returning them.
+         * 
+         * @see {@link required}
+         */
+        sensitive?: boolean;
+        /**
+         * A {@link ConfigurationOptionValidationFunction Validation Function}
+         * used to validate the value of the Configuration Option specified by the user.
+         * 
+         * The Configuration Option will always first be checked against
+         * its {@link type} and {@link required} properties, regardless
+         * of whether or not a Validation Function is provided.
+         * 
+         * @see {@link conversionFn}
+         */
+        validationFn?: ConfigurationOptionValidationFunction<TypeT, FullKeyT>;
+
+        /**
+         * Indicates whether the Configuration Option has a
+         * *Simple Program Variable* associated with it and, if it does,
+         * the *key* used for it.
+         * 
+         * - If `false`, the Configuration Option has no *Simple Program Variable*
+         *   associated with it.
+         * 
+         * - If `true`, the Configuration Option will have a *Simple Program Variable*
+         *   with the same {@link key} as the Configuration Option itself.
+         * 
+         * - If a {@link ObjectUtils.SimpleObjectKey Simple Object Key} is specified,
+         *   the Configuration Option will have a *Simple Program Variable*
+         *   with the specified key, relative to any *Parent Object Keys*.
+         * 
+         * - If a {@link ObjectUtils.ComplexObjectKey Complex Object Key} is specified,
+         *   the Configuration Option will have a *Simple Program Variable*
+         *   with the specified key.
+         * 
+         * E.g.,
+         * | `programVar`     | Configuration Option   | Program Variable       |
+         * | ---------------- | ---------------------- | ---------------------- |
+         * | `false`          | `{ foo: { bar: 42 } }` | `{}`                   |     
+         * | `true`           | `{ foo: { bar: 42 } }` | `{ foo: { bar: 42 } }` |     
+         * | `'baz'`          | `{ foo: { bar: 42 } }` | `{ foo: { baz: 42 } }` |     
+         * | `['bar', 'baz']` | `{ foo: { bar: 42 } }` | `{ bar: { baz: 42 } }` |     
+         */
+        programVar?: boolean | ObjectUtils.SimpleObjectKeyType | ObjectUtils.ComplexObjectKeyType;
+        /**
+         * Specifies the default value to be used for the
+         * {@link programVar Simple Progarm Variable} associated
+         * with this Configuration Option if the Configuration Option
+         * is not specified by the user.
+         * 
+         * This field helps determine the type of the *Program Variable*,
+         * but it has no effect on the *Configuration Option* itself.
+         * - If specified, its type will be added to the inferred type
+         *   of the Program Variable.
+         * - If omitted, `null` will be added to the inferred type of
+         *   the Program Variable instead.
+         * 
+         * This property has no effect when {@link required} is `true`,
+         * as the Configuration Option and associated Program Variable
+         * will always be specified by the user.
+         */
+        defaultProgramVarValue?: (
+            RequiredT extends true
+                ? undefined
+                : any
+        );
+        /**
+         * A {@link ProgramVariableConversionFunction Simple Program Variable Conversion Function}
+         * used to convert the Raw Configuration Option Value to the
+         * associated Program Variable Value.
+         * 
+         * @see {@link validationFn}
+         */
+        // TODO: Fix the return type of the function always being `any`.
+        //
+        // This will probably require another template parameter being
+        // added to `ConfigurationOption`, or the `ReturnT` template parameter
+        // being removed from `ProgramVariableConversionFunction`.
+        conversionFn?: ProgramVariableConversionFunction<any, TypeT, FullKeyT>;
+
         properties?: (
             TypeT extends object
                 ? ConfigurationOptionMap<
                     PropertyNamesT,
                     FullKeyT,
                     RawConfigurationOptionValueString | RawConfigurationOptionValueString[],
+                    boolean,
                     RawConfigurationOptionValue
                 >
                 : undefined
         );
-        required?: boolean;
-        sensitive?: boolean;
-        validationFn?: ConfigurationOptionValidationFunction<TypeT, FullKeyT>;
-
-        programVar?: ObjectUtils.SimpleObjectKeyType | ObjectUtils.ComplexObjectKeyType | boolean;
-        defaultProgramVarValue?: any;
-        conversionFn?: ConfigurationOptionValidationFunction<TypeT, FullKeyT>;
 
     };
     export type ConfigurationOptionType = ConfigurationOption<
         ObjectUtils.SimpleObjectKeyType,
         ObjectUtils.ComplexObjectKeyType,
         RawConfigurationOptionValueString | RawConfigurationOptionValueString[],
+        boolean,
         RawConfigurationOptionValue
     >;
 
@@ -2115,18 +2237,20 @@ export namespace ProgramConfiguration {
         KeysT extends ObjectUtils.SimpleObjectKeyType,
         BaseKeyT extends ObjectUtils.ComplexObjectKeyType,
         TypeStringT extends RawConfigurationOptionValueString | RawConfigurationOptionValueString[],
+        RequiredT extends boolean = false,
         TypeT extends RawConfigurationOptionValue = TypeofType<
             TypeStringT extends RawConfigurationOptionValueString[]
                 ? TypeStringT[number]
                 : TypeStringT
         >
     > = {
-        [K in KeysT]: ConfigurationOption<K, BaseKeyT, TypeStringT, TypeT>;
+        [K in KeysT]: ConfigurationOption<K, BaseKeyT, TypeStringT, RequiredT, TypeT>;
     };
     export type ConfigurationOptionMapType = ConfigurationOptionMap<
         ObjectUtils.SimpleObjectKeyType,
         ObjectUtils.ComplexObjectKeyType,
         RawConfigurationOptionValueString | RawConfigurationOptionValueString[],
+        boolean,
         RawConfigurationOptionValue
     >;
     export type ExtractConfigurationOptionType <T extends ConfigurationOptionType> = (
