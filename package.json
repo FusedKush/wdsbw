@@ -1,0 +1,43 @@
+{
+  "name": "wds-bridge-watchdog",
+  "version": "1.0.0",
+  "description": "A NodeJS WDS Bridge Watchdog Program responsible for continuously monitoring a WDS Bridge and automatically attempting to re-establish it using an extendable API whenever needed.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "install": "tsc",
+    "watch": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FusedKush/wdsbw.git"
+  },
+  "keywords": [
+    "WDS",
+    "Bridge",
+    "Watchdog",
+    "Node.js",
+    "Wi-Fi",
+    "Channel"
+  ],
+  "author": "Zach Vaughan (FusedKush)",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/FusedKush/wdsbw/issues"
+  },
+  "homepage": "https://github.com/FusedKush/wdsbw#readme",
+  "dependencies": {
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.4.7",
+    "node-rsa": "^1.1.1",
+    "puppeteer": "^24.0.0",
+    "rsa-pem-from-mod-exp": "^0.8.6",
+    "typescript": "^5.7.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.6",
+    "@types/node-rsa": "^1.1.4"
+  }
+}
