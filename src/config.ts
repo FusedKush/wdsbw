@@ -2799,22 +2799,28 @@ export abstract class ProgramConfigurationFactory <DefsT extends ProgramConfigur
     
     /* Instance Methods */
 
-    fetch <PrefetchedT extends boolean = true> ( retrieveConfig?: PrefetchedT ): ProgramConfiguration<PrefetchedT, DefsT> {
+    async fetch <PrefetchedT extends boolean = true> ( retrieveConfig?: PrefetchedT ): Promise< ProgramConfiguration<PrefetchedT, DefsT> > {
 
         let config = this.construct<PrefetchedT>();
 
         if (retrieveConfig)
-            config.load();
+            await config.load();
 
         return config;
 
     }
 
-    getConfigVars = ( redacted?: boolean, clone?: boolean ) => this.fetch(true).getConfigVars(redacted, clone);
-    setConfigVars = (
+    getConfigVars = async (
+        redacted?: boolean,
+        clone?: boolean
+    ) => (await this.fetch(true)).getConfigVars(redacted, clone);
+    setConfigVars = async (
         configVars: Parameters<ProgramConfiguration<true, DefsT>['setConfigVars']>[0]
-    ) => this.fetch(true).setConfigVars(configVars);
-    getProgramVars = ( redacted?: boolean, clone?: boolean ) => this.fetch(true).getProgramVars(redacted, clone);
+    ) => (await this.fetch(true)).setConfigVars(configVars);
+    getProgramVars = async (
+        redacted?: boolean,
+        clone?: boolean
+    ) => (await this.fetch(true)).getProgramVars(redacted, clone);
 
 }
 
@@ -3507,14 +3513,14 @@ export class BaseProgramConfigurationFactory <
 
 var programConfig: BaseProgramConfiguration<true> | null = null;
 
-export function getProgramConfig (): BaseProgramConfiguration<true> {
+export async function getProgramConfig (): Promise< BaseProgramConfiguration<true> > {
 
     if (!programConfig) {
         if ( !existsSync(ProgramConfiguration.CONFIG_FILE_PATH) )
             throw new LogicError("The Program Configuration Options File has not been created using `ensureConfigFileExists()` yet!");
 
         try {
-            programConfig = (new BaseProgramConfigurationFactory()).fetch(true);
+            programConfig = await (new BaseProgramConfigurationFactory()).fetch(true);
         }
         catch (error) {
             const BASE_ERROR_MESSAGE = "Failed to retrieve the Base Program Configuration Options";
@@ -3554,9 +3560,9 @@ export async function ensureConfigFileExists ( signal?: AbortSignal ): Promise<v
     if ( !existsSync(ProgramConfiguration.CONFIG_FILE_PATH) ) {
         console.log("Program Configuration Options Not Found! Beginning First-Time Setup...");
 
-        programConfig = (new BaseProgramConfigurationFactory()).fetch(false);
-        // programConfig = new BaseProgramConfiguration();
-        await programConfig.setup(signal, true);
+        await (new BaseProgramConfigurationFactory())
+            .fetch(false)
+            .then( (programConfig) => programConfig.setup(signal, true) );
     }
 
 }

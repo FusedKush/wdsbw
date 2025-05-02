@@ -791,7 +791,9 @@ const keypressHandler: KeypressHandlers.KeypressEventHandler = (str, key): void 
             }
             case 'p': {
                 if (key.shift) {
-                    getProgramConfig().setup().then(verificationInterval.resume);
+                    getProgramConfig()
+                        .then((programConfig) => programConfig.setup)
+                        .then(verificationInterval.resume);
                 }
 
                 break;
@@ -1540,7 +1542,7 @@ function printRuntimeVariables (  ): void {
         // const programVars = getProgramVars();
         // const programConfig = await getProgramConfig();
         await ensureConfigFileExists(abortController.signal);
-        const programVars = getProgramConfig().getProgramVars();
+        const programVars = (await getProgramConfig()).getProgramVars();
         
         if (useVerboseDataLogging()) {
             await printProgramConfiguration();

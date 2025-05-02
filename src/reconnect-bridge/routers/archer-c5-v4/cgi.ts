@@ -1720,7 +1720,7 @@ async function loginToRouter ( credentialSupplier?: LoginCredentialProvider ): P
     
             // Attempt to login to the Router Management Interface
             if (encryptedCredentials !== null)
-                return login(encryptedCredentials);
+                return await login(encryptedCredentials);
     
             verboseLog(`The '${credentialSupplier.method}' Credential Supplier returned ${colorizeOutput(null)}.`);
         }
