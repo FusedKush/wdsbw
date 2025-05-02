@@ -655,7 +655,7 @@ export abstract class ProgramConfiguration <
     constructor ( ...defsOrOtherConfig: DefsT | [ProgramConfiguration<PrefetchedT, DefsT>] ) {
 
         this.#fileManager = new JSONFileManager(
-            ProgramConfiguration.CONFIG_FILE_PATH,
+            ProgramConfiguration.CONFIG_FILE_PATHNAME,
             true,
             './config-schema.jsonc',
             ProgramConfiguration.MAX_CONFIG_FILE_SIZE
@@ -719,6 +719,20 @@ export abstract class ProgramConfiguration <
 
             };
             const definitions = defsOrOtherConfig as DefsT;
+            const configOptions = (() => {
+
+                let configOptions = {};
+
+                for (let i = 0; i < definitions.length; i++) {
+                    const definition = definitions[i];
+    
+                    if (definition.configOptions)
+                        configOptions = Object.assign(configOptions, definition.configOptions);
+                }
+
+                return configOptions;
+
+            })();
             const complexProgramVars = (() => {
 
                 let complexProgramVars: Iterable<[ObjectUtils.DynamicObjectKeyType, ProgramConfiguration.ComplexProgramVariable]>[] = [];
@@ -735,7 +749,7 @@ export abstract class ProgramConfiguration <
             })();
 
             this.definitions = {
-                configOptions: Object.assign({}, ...definitions),
+                configOptions: configOptions,
                 complexProgramVars: new Map(...complexProgramVars)
             } as MergedDefsT;
 
