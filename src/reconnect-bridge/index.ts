@@ -253,7 +253,7 @@ export async function verifyBridgeStatus ( signal: AbortSignal, printStatus: boo
                                 console.error(
                                     "Failed to Re-Establish the WDS Bridge using the",
                                     `'${colorizeOutput(ReconnectionMethod.currentMethod?.description)}' Reconnection Method`,
-                                    `after ${programVars.retries.maxMethodRetries} attempts.`
+                                    `after ${colorizeOutput(programVars.retries.maxMethodRetries)} attempts.`
                                 );
                                 ReconnectionMethod.cycleMethod();
                                 methodRetries = 0;
