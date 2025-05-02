@@ -1499,8 +1499,8 @@ export namespace ReconnectionMethod {
 
         assertMethodsAreRegistered();
 
-        currentMethod = ObjectUtils.nextValue(registeredMethods, currentMethod!.name);
-        return currentMethod!;
+        currentMethod = ObjectUtils.nextValue(registeredMethods, currentMethod!.name, true);
+        return currentMethod;
 
     }
 
