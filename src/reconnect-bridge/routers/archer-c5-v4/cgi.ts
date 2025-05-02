@@ -79,8 +79,6 @@ import { constants, createPublicKey, publicEncrypt } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import NodeRSA from "node-rsa";
-import { BigInteger } from "jsbn";
-import rsaPemFromModExp from "rsa-pem-from-mod-exp";
 import puppeteer from "puppeteer";
 import { RawEnvironmentVariables } from "../../../env.js";
 import { BaseProgramConfiguration, ProgramConfiguration } from "../../../config.js";
@@ -117,29 +115,7 @@ export type CustomEnvVarsType = {
         ]
     ]
 };
-new class CustomConfigurationOptions <
-    CustomDefsT extends ProgramConfiguration.ProgramConfigurationDefinitionsType = {},
-    PrefetchedT extends boolean = false
-> extends BaseProgramConfiguration<CustomDefsT, PrefetchedT> {
 
-    constructor ();
-    constructor ( customDefinitions?: CustomDefsT );
-    constructor ( otherConfig?: CustomConfigurationOptions<CustomDefsT> );
-    constructor ( customDefsOrOtherConfig?: CustomConfigurationOptions<CustomDefsT> | CustomDefsT ) {
-
-        if (customDefsOrOtherConfig instanceof CustomConfigurationOptions) {
-            super(customDefsOrOtherConfig);
-        }
-        else {
-            super(
-                Object.assign({}, {}, customDefsOrOtherConfig ?? {}) as CustomDefsT,
-                // (baseDefs ?? BaseProgramConfiguration.CONFIG_DEFINITIONS) as BaseDefsT
-            );
-        }
-
-    }
-
-}
 
 // HTTP Parameters & Data
 
@@ -910,18 +886,11 @@ const LOGIN_CREDENTIAL_PROVIDERS = {
             if (!publicKey)
                 throw new Error("Failed to Retrieve the RSA Public Key!");
     
-            // const key = createPublicKey()
             // const key = new NodeRSA();
             // key.importKey({
             //     e: parseInt(publicKey.exponent, 16),
             //     n: Buffer.from(publicKey.modulus, 'hex')
             // }, 'components-public');
-            // const pem = (rsaPemFromModExp as any)(
-            //     Buffer.from(publicKey.modulus, 'hex').toString('base64'),
-            //     Buffer.from(publicKey.exponent, 'hex').toString('base64')
-            // );
-            // verboseLog(pem);
-            // const key = createPublicKey(pem);
             const key = createPublicKey({
                 format: 'jwk',
                 key: {
