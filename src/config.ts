@@ -490,7 +490,7 @@ import path from "node:path";
  */
 export abstract class ProgramConfiguration <
     PrefetchedT extends boolean = false,
-    DefsT extends ProgramConfiguration.ProgramConfigurationDefinitionsType[] = [],
+    DefsT extends ProgramConfiguration.MergableProgramConfigurationDefinitions = ProgramConfiguration.DefaultMergableProgramConfigurationDefinitions,
     MergedDefsT extends ProgramConfiguration.ProgramConfigurationDefinitions<
         ProgramConfiguration.ConfigurationOptionMapType
     > = ProgramConfiguration.MergedProgramConfigurationDefinitions<DefsT>
@@ -1097,7 +1097,12 @@ export abstract class ProgramConfiguration <
                     if ( !(key in configVars) )
                         configVars[key] = {};
 
-                    parseVars(option.properties, configVars[key], newVars[key] ?? {}, fullKey);
+                    parseVars(
+                        option.properties,
+                        configVars[key],
+                        newVars[key] ?? {},
+                        (option.programVar !== false ? fullKey : baseKey)
+                    );
                 }
 
                 if ( !(key in newVars) ) {
@@ -1995,13 +2000,9 @@ export namespace ProgramConfiguration {
      * @see {@link SimpleProgramVariableType}
      */
     export type DynamicProgramVariableKey <T extends ConfigurationOptionType> = (
-        ProgramVariableKey<T> extends infer C
-            ? (
-                C extends [infer K]
-                    ? K
-                    : C
-            )
-            : never
+        ProgramVariableKey<T> extends [infer K]
+            ? K
+            : ProgramVariableKey<T>
     );
 
     /**
@@ -2040,21 +2041,19 @@ export namespace ProgramConfiguration {
         KeyT extends ObjectUtils.SimpleObjectKeyType,
         BaseKeyT extends ObjectUtils.ComplexObjectKeyType,
         TypeStringT extends RawConfigurationOptionValueString | RawConfigurationOptionValueString[],
-        RequiredT extends boolean = false,
         TypeT extends RawConfigurationOptionValue = TypeofType<
             TypeStringT extends RawConfigurationOptionValueString[]
                 ? TypeStringT[number]
                 : TypeStringT
         >,
-        ProgramVarTypeT = (
-
-        ),
+        RequiredT extends boolean = false,
+        ProgramVarT extends boolean | ObjectUtils.SimpleObjectKeyType | ObjectUtils.ComplexObjectKeyType = true,
         PropertyNamesT extends ObjectUtils.SimpleObjectKeyType = (
             TypeT extends object
                 ? ObjectUtils.SimpleObjectKeyType
                 : never
         ),
-        FullKeyT extends ObjectUtils.ComplexObjectKeyType = ArrayUtils.TupleFromTypes<BaseKeyT, KeyT>
+        FullKeyT extends ObjectUtils.ComplexObjectKeyType = ArrayUtils.TupleFromTypes<BaseKeyT, KeyT>,
     > {
 
         /**
@@ -2175,7 +2174,7 @@ export namespace ProgramConfiguration {
          * | `'baz'`          | `{ foo: { bar: 42 } }` | `{ foo: { baz: 42 } }` |     
          * | `['bar', 'baz']` | `{ foo: { bar: 42 } }` | `{ bar: { baz: 42 } }` |     
          */
-        programVar?: boolean | ObjectUtils.SimpleObjectKeyType | ObjectUtils.ComplexObjectKeyType;
+        programVar?: ProgramVarT;
         /**
          * Specifies the default value to be used for the
          * {@link programVar Simple Progarm Variable} associated
@@ -2218,8 +2217,9 @@ export namespace ProgramConfiguration {
                     PropertyNamesT,
                     FullKeyT,
                     RawConfigurationOptionValueString | RawConfigurationOptionValueString[],
+                    RawConfigurationOptionValue,
                     boolean,
-                    RawConfigurationOptionValue
+                    boolean | ObjectUtils.SimpleObjectKeyType | ObjectUtils.ComplexObjectKeyType
                 >
                 : undefined
         );
@@ -2229,30 +2229,28 @@ export namespace ProgramConfiguration {
         ObjectUtils.SimpleObjectKeyType,
         ObjectUtils.ComplexObjectKeyType,
         RawConfigurationOptionValueString | RawConfigurationOptionValueString[],
+        RawConfigurationOptionValue,
         boolean,
-        RawConfigurationOptionValue
+        boolean | ObjectUtils.SimpleObjectKeyType | ObjectUtils.ComplexObjectKeyType
     >;
 
     export type ConfigurationOptionMap <
         KeysT extends ObjectUtils.SimpleObjectKeyType,
         BaseKeyT extends ObjectUtils.ComplexObjectKeyType,
         TypeStringT extends RawConfigurationOptionValueString | RawConfigurationOptionValueString[],
-        RequiredT extends boolean = false,
         TypeT extends RawConfigurationOptionValue = TypeofType<
             TypeStringT extends RawConfigurationOptionValueString[]
                 ? TypeStringT[number]
                 : TypeStringT
-        >
+        >,
+        RequiredT extends boolean = false,
+        ProgramVarT extends boolean | ObjectUtils.SimpleObjectKeyType | ObjectUtils.ComplexObjectKeyType = true
     > = {
-        [K in KeysT]: ConfigurationOption<K, BaseKeyT, TypeStringT, RequiredT, TypeT>;
+        [K in KeysT]: ConfigurationOption<K, BaseKeyT, TypeStringT, TypeT, RequiredT, ProgramVarT>;
     };
-    export type ConfigurationOptionMapType = ConfigurationOptionMap<
-        ObjectUtils.SimpleObjectKeyType,
-        ObjectUtils.ComplexObjectKeyType,
-        RawConfigurationOptionValueString | RawConfigurationOptionValueString[],
-        boolean,
-        RawConfigurationOptionValue
-    >;
+    export type ConfigurationOptionMapType = {
+        [K: ObjectKey]: ConfigurationOptionType;
+    };
     export type ExtractConfigurationOptionType <T extends ConfigurationOptionType> = (
         T extends { type: infer S }
             ? TypeofType<S>
@@ -2358,6 +2356,7 @@ export namespace ProgramConfiguration {
         ConfigurationOptionMapType | undefined,
         ComplexProgramVariableMapType | undefined
     >;
+
     type MergedProgramConfigurationDefinitionsMergeHelper <
         BaseConfigT extends ProgramConfigurationDefinitionsType,
         CustomConfigT extends ProgramConfigurationDefinitionsType
@@ -2416,10 +2415,14 @@ export namespace ProgramConfiguration {
         ConfigsT extends ProgramConfigurationDefinitionsType[]
             ? (
                 ConfigsT['length'] extends 0
-                    ? {}
+                    ? { configOptions: {} }
                     : (
                         ConfigsT['length'] extends 1
-                            ? ConfigsT[0]
+                            ? (
+                                ConfigsT[0] extends ProgramConfigurationDefinitions<ConfigurationOptionMapType>
+                                    ? ConfigsT[0]
+                                    : never
+                            )
                             : (
                                 MergedProgramConfigurationDefinitionsMergeHelper<ConfigsT[0], ConfigsT[1]>
                                 & MergedProgramConfigurationDefinitionsRecursionHelper<
@@ -2434,10 +2437,14 @@ export namespace ProgramConfiguration {
             )
             : {}
     );
-    export type MergedProgramConfigurationDefinitions <ConfigsT extends ProgramConfigurationDefinitionsType[]> = (
-        { configOptions: ConfigurationOptionMapType }
-        & MergedProgramConfigurationDefinitionsRecursionHelper<ConfigsT>
-    );
+    export type MergableProgramConfigurationDefinitions = [
+        ProgramConfiguration.ProgramConfigurationDefinitions<ProgramConfiguration.ConfigurationOptionMapType>,
+        ...ProgramConfiguration.ProgramConfigurationDefinitionsType[]
+    ];
+    export type DefaultMergableProgramConfigurationDefinitions = [{ configOptions: {} }];
+    export type MergedProgramConfigurationDefinitions <
+        ConfigsT extends [ProgramConfigurationDefinitions<ConfigurationOptionMapType>, ...ProgramConfigurationDefinitionsType[]]
+    > = MergedProgramConfigurationDefinitionsRecursionHelper<ConfigsT>;
 
     type SensitiveConfigurationOptionsHelper <
         T extends ConfigurationOptionType,
@@ -2727,49 +2734,88 @@ export namespace ProgramConfiguration {
             //     }[number]
             //     : never>
     
-    type SimpleKeyProgramVariablesHelper <T extends ConfigurationOptionType> = (
-        object extends ExtractConfigurationOptionType<T>
-            ? (
-                T['properties'] extends ConfigurationOptionMapType
-                    ? {
-                        [
-                            K in keyof T['properties'] as DynamicProgramVariableKey<T['properties'][K]> extends ObjectUtils.SimpleObjectKeyType
-                                ? DynamicProgramVariableKey<T['properties'][K]>
-                                : never
-                        ]: SimpleKeyProgramVariablesHelper<T['properties'][K]>;
-                    }
-                    : never
-            )
-            : (
-                (
-                    T['conversionFn'] extends ProgramVariableConversionFunction
-                        ? ReturnType<T['conversionFn']>
-                        : ExtractConfigurationOptionType<T>
-                ) | (
-                    T['required'] extends true
-                        ? never
-                        : (
-                            'defaultProgramVarValue' extends keyof T
-                                ? T['defaultProgramVarValue']
-                                : null
-                        )
-                )
-            )
-    );
-    type ComplexKeyProgramVariablesHelper <T extends ConfigurationOptionType> = (
-        T['properties'] extends ConfigurationOptionMapType
-            ? {
-                -readonly [K in keyof T['properties']]: ComplexKeyProgramVariablesHelper<T['properties'][K]>;
-            }[keyof T['properties']]
-            : {}
-    ) & (
-        T['programVar'] extends ObjectUtils.ComplexObjectKeyType
-            ? ObjectUtils.RecordNestedObject<
-                T['programVar'],
-                SimpleProgramVariableType<T>
-            >
-            : {}
-    );
+    // type SimpleKeyProgramVariablesHelper <T extends ConfigurationOptionType> = (
+    //     object extends ExtractConfigurationOptionType<T>
+    //         ? (
+    //             T['properties'] extends ConfigurationOptionMapType
+    //                 ? {
+    //                     [
+    //                         K in keyof T['properties'] as DynamicProgramVariableKey<T['properties'][K]> extends ObjectUtils.SimpleObjectKeyType
+    //                             ? DynamicProgramVariableKey<T['properties'][K]>
+    //                             : never
+    //                     ]: SimpleKeyProgramVariablesHelper<T['properties'][K]>;
+    //                 }
+    //                 : never
+    //         )
+    //         : (
+    //             (
+    //                 'conversionFn' extends keyof T
+    //                     ? ReturnType<
+    //                         T['conversionFn'] extends ProgramVariableConversionFunction
+    //                             ? T['conversionFn']
+    //                             : never
+    //                     >
+    //                     : ExtractConfigurationOptionType<T>
+    //             ) | (
+    //                 T['required'] extends true
+    //                     ? never
+    //                     : (
+    //                         'defaultProgramVarValue' extends keyof T
+    //                             ? T['defaultProgramVarValue']
+    //                             : null
+    //                     )
+    //             )
+    //         )
+    // );
+    // type ComplexKeyProgramVariablesHelper <T extends ConfigurationOptionType> = (
+    //     T['properties'] extends ConfigurationOptionMapType
+    //         ? {
+    //             -readonly [K in keyof T['properties']]: ComplexKeyProgramVariablesHelper<T['properties'][K]>;
+    //         }[keyof T['properties']]
+    //         : {}
+    // ) & (
+    //     T['programVar'] extends ObjectUtils.ComplexObjectKeyType
+    //         ? ObjectUtils.RecordNestedObject<
+    //             T['programVar'],
+    //             SimpleProgramVariableType<T>
+    //         >
+    //         : {}
+    // );
+    type SimpleProgramVariablesHelper <
+        T extends ConfigurationOptionMapType, 
+        BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
+    > = UnionToIntersection<{
+        [K in keyof T]: (
+            T[K]['programVar'] extends false
+                ? {}
+                : ObjectUtils.RecordNestedObject<
+                    (
+                        T[K]['programVar'] extends ObjectUtils.ComplexObjectKeyType
+                            ? T[K]['programVar']
+                            : ArrayUtils.TupleFromTypes<
+                                BaseKeyT,
+                                (
+                                    T[K]['programVar'] extends ObjectUtils.SimpleObjectKeyType
+                                        ? T[K]['programVar']
+                                        : T[K]['key']
+                                )
+                            >
+                    ),
+                    SimpleProgramVariableType<T[K]>
+                >
+        ) & (
+            T[K]['properties'] extends ConfigurationOptionMapType
+                ? SimpleProgramVariablesHelper<
+                    T[K]['properties'],
+                    (
+                        T[K]['programVar'] extends false
+                            ? BaseKeyT
+                            : ArrayUtils.TupleFromTypes<BaseKeyT, K>
+                    )
+                >
+                : {}
+        );
+    }[keyof T]>;
     // type ComplexKeyProgramVariablesHelper <OptionsT extends NewConfigurationOptionMapType> = (
     //     {
     //         [K in keyof OptionsT as OptionsT[K]['programVar'] extends ObjectUtils.ComplexObjectKeyType ? number : never]: ObjectUtils.RecordNestedObject<
@@ -2802,13 +2848,24 @@ export namespace ProgramConfiguration {
                     ? (
                         [OptionsT] extends [never]
                             ? {}
-                            : (
-                                {
-                                    -readonly [K in keyof OptionsT]: SimpleKeyProgramVariablesHelper<OptionsT[K]>;
-                                } & {
-                                    -readonly [K in keyof OptionsT]: ComplexKeyProgramVariablesHelper<OptionsT[K]>;
-                                }
-                            )
+                            : SimpleProgramVariablesHelper<OptionsT>
+                            // : (
+                            //     /* {
+                            //         -readonly [
+                            //             K in keyof OptionsT as DynamicProgramVariableKey<OptionsT[K]> extends ObjectUtils.SimpleObjectKeyType
+                            //                 ? DynamicProgramVariableKey<OptionsT[K]>
+                            //                 : never
+                            //         ]: SimpleKeyProgramVariablesHelper<OptionsT[K]>;
+                            //     } & */ (
+                            //         {
+                            //             -readonly [
+                            //                 K in keyof OptionsT as OptionsT[K]['programVar'] extends ObjectUtils.ComplexObjectKeyType
+                            //                     ? number
+                            //                     : never
+                            //             ]: ComplexKeyProgramVariablesHelper<OptionsT[K]>;
+                            //         }
+                            //     )
+                            // )
                     )
                     : any
             ) extends infer O
@@ -2925,10 +2982,12 @@ export namespace ProgramConfiguration {
     //         )
     //         : never
     // );
-   
+
 }
 
-export abstract class ProgramConfigurationFactory <DefsT extends ProgramConfiguration.ProgramConfigurationDefinitionsType[] = []> {
+export abstract class ProgramConfigurationFactory <
+    DefsT extends ProgramConfiguration.MergableProgramConfigurationDefinitions = ProgramConfiguration.DefaultMergableProgramConfigurationDefinitions
+> {
 
     /* Abstract Methods */
 
@@ -3262,7 +3321,7 @@ export namespace BaseProgramConfiguration {
             description: "The number of the Network Subnet Component in the IP Address.\n\nE.g.,\n192.168.0.1\n        ^",
             required: true,
             validationFn: subnetNumValidationFn,
-            programVar: ['foo', 'bar']
+            programVar: false
         },
         verificationInterval: {
             key: 'verificationInterval',
