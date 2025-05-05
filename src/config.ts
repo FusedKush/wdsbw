@@ -2985,39 +2985,238 @@ export namespace ProgramConfiguration {
 
 }
 
+/**
+ * An *Object Factory* capable of constructing
+ * {@link ProgramConfiguration} objects, as well
+ * as automatically {@link ProgramConfiguration.prototype.load loading}
+ * or {@link ProgramConfiguration.prototype.setup setting them up}
+ * immediately after construction.
+ * 
+ * @example
+ * export class MyProgramConfigurationFactory <
+ *     CustomDefsT extends ProgramConfiguration.ProgramConfigurationDefinitionsType[] = [],
+ *     SuppressErrorsT extends boolean = true
+ * > extends ProgramConfigurationFactory<[MyProgramConfiguration.MyConfigurationDefinitions, ...CustomDefsT], SuppressErrorsT>
+ * {
+ * 
+ *      constructor ( suppressErrors?: SuppressErrorsT ) {
+ * 
+ *          super((suppressErrors ?? true) as SuppressErrorsT);
+ * 
+ *      }
+ * 
+ * 
+ *      construct <PrefetchedT extends boolean = true> ( retrieveConfig?: PrefetchedT ): ProgramConfiguration<
+ *          PrefetchedT,
+ *          [MyProgramConfiguration.MyConfigurationDefinitions, ...CustomDefsT]
+ *      > {
+ *  
+ *          return new MyProgramConfiguration<PrefetchedT, CustomDefsT>();
+ *  
+ *      }
+ * 
+ * }
+ * 
+ * const myConfigFactory = new MyProgramConfigurationFactory();
+ * const myConfig = myConfigFactory.fetch();
+ * 
+ * console.log(myConfig.getConfigVars());
+ */
 export abstract class ProgramConfigurationFactory <
-    DefsT extends ProgramConfiguration.MergableProgramConfigurationDefinitions = ProgramConfiguration.DefaultMergableProgramConfigurationDefinitions
+    DefsT extends ProgramConfiguration.MergableProgramConfigurationDefinitions,
+    SuppressErrorsT extends boolean
 > {
+
+    /* Instance Properties */
+
+    /**
+     * Indicates whether or not any errors raised during the process
+     * of {@link construct constructing}, {@link fetch fetching},
+     * {@link generate generating}, or {@link prepare preparing}
+     * a {@link ProgramConfiguration} object should be *suppressed*.
+     * 
+     * This value directly affects the behavior and return type
+     * of the {@link fetch `fetch()`},  {@link generate `generate()},
+     * and {@link prepare `prepare()`} methods.
+     */
+    readonly suppressErrors: SuppressErrorsT;
+
+
+    /* Class Constructor */
+
+    /**
+     * Construct a new `ProgramConfigurationFactory`.
+     * 
+     * @param suppressErrors    Indicates whether or not any errors raised during the process
+     *                          of {@link construct constructing}, {@link fetch fetching},
+     *                          {@link generate generating}, or {@link prepare preparing}
+     *                          a {@link ProgramConfiguration} object should be *suppressed*.
+     * 
+     *                          This option directly affects the behavior and return type
+     *                          of the {@link fetch `fetch()`},  {@link generate `generate()},
+     *                          and {@link prepare `prepare()`} methods.
+     */
+    constructor ( suppressErrors: SuppressErrorsT ) {
+
+        this.suppressErrors = suppressErrors;
+
+    }
+
 
     /* Abstract Methods */
 
-    abstract construct <PrefetchedT extends boolean = true> ( retrieveConfig?: PrefetchedT ): ProgramConfiguration<PrefetchedT, DefsT>;
+    /**
+     * Construct a new instance of the designated
+     * {@link ProgramConfiguration} object.
+     * 
+     * @template PrepopulatedT      The type of the `prepopulated` argument.
+     * 
+     * @param prepopulated          Indicates whether or not the returned {@link ProgramConfiguration}
+     *                              object is going to be immediately {@link ProgramConfiguration.prototype.setup setup}
+     *                              or {@link ProgramConfiguration.prototype.load loaded} after construction.
+     * 
+     * @returns                     The newly constructed {@link ProgramConfiguration} object.
+     * 
+     * @see {@link fetch `fetch()`}
+     * @see {@link generate `generate()`}
+     * @see {@link prepare `prepare()`}
+     */
+    abstract construct <PrepopulatedT extends boolean = true> ( prepopulated?: PrepopulatedT ): ProgramConfiguration<PrepopulatedT, DefsT>;
     
     
     /* Instance Methods */
 
-    async fetch <PrefetchedT extends boolean = true> ( retrieveConfig?: PrefetchedT ): Promise< ProgramConfiguration<PrefetchedT, DefsT> > {
+    /**
+     * *Fetch* an instance of the designated {@link ProgramConfiguration}
+     * object by {@link construct constructing} a new one and then
+     * {@link ProgramConfiguration.prototype.load loading} it
+     * from the JSON Configuration File.
+     * 
+     * In contrast to {@link generate `generate()`}, this method attempts to
+     * {@link ProgramConfiguration.prototype.load load} the existing {@link ProgramConfiguration}
+     * from the JSON Configuration File rather than attempting to {@link ProgramConfiguration.prototype.setup set one up}.
+     * 
+     * In contrast to {@link prepare `prepare()`}, this method will *always*
+     * attempt to {@link ProgramConfiguration.prototype.load load} the existing
+     * {@link ProgramConfiguration} from the JSON Configuration File, even if the
+     * configuration file {@link configFileExists does not exist}.
+     * 
+     * @template ReturnT    The inferred type of the value contained in the returned promise.
+     * 
+     * @returns             A promise that resolves to the retrieved {@link ProgramConfiguration} object.
+     * 
+     * @throws              Rejects if the designated {@link ProgramConfiguration} object could not be successfully
+     *                      {@link construct constructed} or {@link ProgramConfiguration.prototype.load loaded}.
+     * 
+     * @see {@link construct `construct()`}
+     * @see {@link generate `generate()`}
+     * @see {@link prepare `prepare()`}
+     */
+    fetch = <
+        ReturnT extends ProgramConfiguration<true, DefsT> | (SuppressErrorsT extends true ? null : never)
+    > (): Promise<ReturnT> => ((config) => config.load().then(
+        (configVars) => {
 
-        let config = this.construct<PrefetchedT>();
+            if (!configVars) {
+                if (this.suppressErrors)
+                    return null as ReturnT;
+                else
+                    throw new RuntimeError("Failed to fetch the Program Configuration from the JSON Configuration File.");
+            }
 
-        if (retrieveConfig)
-            await config.load();
+            return config as ReturnT;
 
-        return config;
+        },
+        (error) => {
 
-    }
+            if (this.suppressErrors)
+                return null as ReturnT;
+            else
+                throw error;
 
-    getConfigVars = async (
-        redacted?: boolean,
-        clone?: boolean
-    ) => (await this.fetch(true)).getConfigVars(redacted, clone);
-    setConfigVars = async (
-        configVars: Parameters<ProgramConfiguration<true, DefsT>['setConfigVars']>[0]
-    ) => (await this.fetch(true)).setConfigVars(configVars);
-    getProgramVars = async (
-        redacted?: boolean,
-        clone?: boolean
-    ) => (await this.fetch(true)).getProgramVars(redacted, clone);
+        }
+    ))(this.construct(true));
+    /**
+     * *Generate* an instance of the designated {@link ProgramConfiguration}
+     * object by {@link construct constructing} a new one and then
+     * {@link ProgramConfiguration.prototype.setup setting it up}.
+     * 
+     * In contrast to {@link generate `generate()`}, this method attempts to
+     * {@link ProgramConfiguration.prototype.setup setup} a new {@link ProgramConfiguration}
+     * rather than attempting to {@link ProgramConfiguration.prototype.load load one}
+     * from an existing JSON Configuration File.
+     * 
+     * In contrast to {@link prepare `prepare()`}, this method will *always*
+     * attempt to {@link ProgramConfiguration.prototype.setup setup} a new
+     * {@link ProgramConfiguration}, even if the configuration file
+     * {@link configFileExists already exists}.
+     * 
+     * @template ReturnT    The inferred type of the value contained in the returned promise.
+     * 
+     * @param signal        An {@link AbortSignal} that can be used to abort and terminate
+     *                      the Interactive Setup Procedure early.
+     * 
+     * @returns             A promise that resolves to the generated {@link ProgramConfiguration} object.
+     * 
+     * @throws              Rejects if the designated {@link ProgramConfiguration} object could not be successfully
+     *                      {@link construct constructed} or {@link ProgramConfiguration.prototype.setup setup}.
+     * 
+     * @see {@link construct `construct()`}
+     * @see {@link load `load()`}
+     * @see {@link prepare `prepare()`}
+     */
+    generate = <
+        ReturnT extends ProgramConfiguration<true, DefsT> | (SuppressErrorsT extends true ? null : never)
+    > ( signal?: AbortSignal ): Promise<ReturnT> => ((config) => config.setup(signal, true).then(
+        () => config as ReturnT,
+        (error) => {
+
+            if (this.suppressErrors)
+                return null as ReturnT;
+            else
+                throw error;
+
+        }
+    ))(this.construct(true));
+    /**
+     * *Prepare* an instance of the designated {@link ProgramConfiguration}
+     * object by {@link construct constructing} a new one and then
+     * either {@link ProgramConfiguration.prototype.setup setting it up}
+     * or {@link ProgramConfiguration.prototype.load loading} it
+     * from an existing JSON Configuration File.
+     * 
+     * In contrast to {@link generate `generate()`} or {@link generate `generate()`},
+     * this method will automatically determine whether the {@link ProgramConfiguration.prototype.setup `setup()`}
+     * or {@link ProgramConfiguration.prototype.load `load()`} method should be called on
+     * the designated {@link ProgramConfiguration} object, rather than always performing
+     * one of the two operations.
+     * 
+     * @template ReturnT    The inferred type of the value contained in the returned promise.
+     * 
+     * @param signal        An {@link AbortSignal} that can be used to abort and terminate
+     *                      the Interactive Setup Procedure early.
+     * 
+     *                      The `signal` is only used when {@link ProgramConfiguration.prototype.setup setting up}
+     *                      a {@link ProgramConfiguration} and cannot be used to terminate the
+     *                      {@link ProgramConfiguration.prototype.load `load()`} operation early.
+     * 
+     * @returns             A promise that resolves to the generated or retrieved {@link ProgramConfiguration} object.
+     * 
+     * @throws              Rejects if the designated {@link ProgramConfiguration} object could not be successfully
+     *                      {@link construct constructed}, {@link ProgramConfiguration.prototype.setup setup}
+     *                      or {@link ProgramConfiguration.prototype.load loaded}.
+     * 
+     * @see {@link construct `construct()`}
+     * @see {@link load `load()`}
+     * @see {@link generate `generate()`}
+     */
+    prepare = <
+        ReturnT extends ProgramConfiguration<true, DefsT> | (SuppressErrorsT extends true ? null : never)
+    > ( signal?: AbortSignal ): Promise<ReturnT> => (
+        configFileExists()
+            ? (console.log("Program Configuration Options Not Found! Beginning First-Time Setup..."), this.fetch())
+            : this.generate(signal)
+        );
 
 }
 
@@ -3682,8 +3881,17 @@ export namespace BaseProgramConfiguration {
     
 }
 export class BaseProgramConfigurationFactory <
-    CustomDefsT extends ProgramConfiguration.ProgramConfigurationDefinitionsType[] = []
-> extends ProgramConfigurationFactory<[BaseProgramConfiguration.BaseConfigurationDefinitions, ...CustomDefsT]> {
+    CustomDefsT extends ProgramConfiguration.ProgramConfigurationDefinitionsType[] = [],
+    SuppressErrorsT extends boolean = true
+> extends ProgramConfigurationFactory<[BaseProgramConfiguration.BaseConfigurationDefinitions, ...CustomDefsT], SuppressErrorsT>
+{
+
+    constructor ( suppressErrors?: SuppressErrorsT ) {
+
+        super((suppressErrors ?? true) as SuppressErrorsT);
+
+    }
+
 
     /**
      * @override
@@ -3710,56 +3918,18 @@ export class BaseProgramConfigurationFactory <
 
 var programConfig: BaseProgramConfiguration<true> | null = null;
 
-export async function getProgramConfig (): Promise< BaseProgramConfiguration<true> > {
+export const getProgramConfig = (): Promise<BaseProgramConfiguration<true>> => (
+    programConfig
+        ? Promise.resolve(programConfig)
+        : (new BaseProgramConfigurationFactory(false)).prepare().catch((error) => {
 
-    if (!programConfig) {
-        if ( !existsSync(ProgramConfiguration.CONFIG_FILE_PATH) )
-            throw new LogicError("The Program Configuration Options File has not been created using `ensureConfigFileExists()` yet!");
-
-        try {
-            programConfig = await (new BaseProgramConfigurationFactory()).fetch(true);
-        }
-        catch (error) {
             const BASE_ERROR_MESSAGE = "Failed to retrieve the Base Program Configuration Options";
 
             if (error instanceof Error)
                 throw new RuntimeError(`${BASE_ERROR_MESSAGE}: ${error.message}`, { cause: error });
             else
                 throw new RuntimeError(`${BASE_ERROR_MESSAGE}.`);
-        }
 
-        // if (existsSync(ProgramConfiguration.CONFIG_FILE_PATH)) {
-        //     programConfig = await BaseProgramConfiguration
-        //         .fetch<BaseProgramConfiguration.BaseConfigurationDefinitions, {}, true>()
-        //         .catch((error) => {
-    
-        //             const BASE_ERROR_MESSAGE = "Failed to retrieve the Base Program Configuration Options";
-    
-        //             if (error instanceof Error)
-        //                 throw new RuntimeError(`${BASE_ERROR_MESSAGE}: ${error.message}`, { cause: error });
-        //             else
-        //                 throw new RuntimeError(BASE_ERROR_MESSAGE);
-    
-        //         });
-        // }
-        // else {
-        //     console.log("Program Configuration Options Not Found! Beginning First-Time Setup...");
-        //     programConfig = new BaseProgramConfiguration();
-        //     programConfig.setup(signal, true);
-        // }
-    }
-
-    return programConfig;
-
-}
-export async function ensureConfigFileExists ( signal?: AbortSignal ): Promise<void> {
-
-    if ( !existsSync(ProgramConfiguration.CONFIG_FILE_PATH) ) {
-        console.log("Program Configuration Options Not Found! Beginning First-Time Setup...");
-
-        await (new BaseProgramConfigurationFactory())
-            .fetch(false)
-            .then( (programConfig) => programConfig.setup(signal, true) );
-    }
-
-}
+        })
+);
+export const configFileExists = (): boolean => existsSync(ProgramConfiguration.CONFIG_FILE_PATHNAME);
