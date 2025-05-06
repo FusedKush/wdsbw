@@ -1999,10 +1999,13 @@ export namespace ProgramConfiguration {
      * @see {@link ConfigurationOption}
      * @see {@link SimpleProgramVariableType}
      */
-    export type DynamicProgramVariableKey <T extends ConfigurationOptionType> = (
-        ProgramVariableKey<T> extends [infer K]
+    export type DynamicProgramVariableKey <
+        OptionT extends ConfigurationOptionType,
+        BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
+    > = (
+        ProgramVariableKey<OptionT, BaseKeyT> extends [infer K]
             ? K
-            : ProgramVariableKey<T>
+            : ProgramVariableKey<OptionT, BaseKeyT>
     );
 
     /**
