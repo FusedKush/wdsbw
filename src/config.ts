@@ -1757,6 +1757,8 @@ export abstract class ProgramConfiguration <
 }
 export namespace ProgramConfiguration {
 
+    /* General Types */
+
     /**
      * A union type containing all of the valid
      * {@link TypeofType types} that a Raw *Configuration Value*
@@ -1782,6 +1784,10 @@ export namespace ProgramConfiguration {
      */
     export type RawConfigurationOptionValueString = TypeofTypeString<RawConfigurationOptionValue>;
     
+
+    /* Configuration Option Specifications */
+    // Callback Function Types
+
     /**
      * A *Configuration Option Validation Function* used to validate
      * the value of one or more *Configuration Options* specified by the user.
@@ -1853,160 +1859,9 @@ export namespace ProgramConfiguration {
         ValueT extends RawConfigurationOptionValue = RawConfigurationOptionValue,
         NameT extends ObjectUtils.ComplexObjectKeyType = ObjectUtils.ComplexObjectKeyType
     > = ( value: ValueT, name: NameT ) => ReturnT;
-    /**
-     * A *Complex Program Variable Conversion Function* used to
-     * convert one or more Raw *Configuration Options* into
-     * a single *Program Variable*.
-     * 
-     * Complex Program Variable Conversion Functions are most commonly found
-     * attached to the {@link ComplexProgramVariable.conversionFn conversionFn}
-     * property of a {@link ComplexProgramVariable} object.
-     * 
-     * @template OptionT        The {@link ConfigurationOptionMap} type used to
-     *                          determine the values passed to the `configOptions` argument.
-     * 
-     * @template ReturnT        The return type of the function.
-     * 
-     * @param configOptions     The {@link ConfigurationOptions Raw Configuration Options}
-     *                          available to derive the Program Variable from.
-     * 
-     * @returns                 The converted value to use for the Program Variable.
-     * 
-     *                          The return type of this function solely determines the type
-     *                          of the associated Complex Program Variable.
-     * 
-     * @see {@link ConfigurationOptionValidationFunction}
-     * @see {@link ProgramVariableConversionFunction}
-     */
-    export type ComplexProgramVariableConversionFunction <
-        OptionsT extends ConfigurationOptionMapType = ConfigurationOptionMapType,
-        ReturnT = any
-    > = ( configOptions: ConfigurationOptions<OptionsT> ) => ReturnT;
 
-    /**
-     * A helper type used to extract the type of a
-     * *Simple Program Variable* derived from a
-     * single {@link ConfigurationOption Configuration Option}.
-     * 
-     * - If `OptionT` contains a {@link ProgramVariableConversionFunction},
-     *   its {@link ReturnType return type} will be used to infer the
-     *   type of the Program Variable. Otherwise, the type specified
-     *   in the {@link ConfigurationOption.type type} field will be used.
-     * 
-     * - Furthermore, if `OptionT` specifies a {@link ConfigurationOption.defaultProgramVarValue default value}
-     *   for the Program Variable, its type will be added to the inferred type.
-     * 
-     * @template OptionT    The {@link ConfigurationOption Configuration Option} whose
-     *                      associated Program Variable is being evaluated.
-     * 
-     * @see {@link ConfigurationOption}
-     * @see {@link ProgramVariableKey}
-     */
-    export type SimpleProgramVariableType <OptionT extends ConfigurationOptionType> = (
-        (
-            OptionT['conversionFn'] extends ProgramVariableConversionFunction
-                    ? ReturnType<OptionT['conversionFn']>
-                    : TypeofType<OptionT['type']>
-        ) | (
-            'defaultProgramVarValue' extends keyof OptionT
-                ? OptionT['defaultProgramVarValue']
-                : never
-        )
-    );
-    /**
-     * A helper type used to extract the {@link ObjectUtils.ComplexObjectKey *Complex* Object Key}
-     * for a *Simple Program Variable* derived from a
-     * single {@link ConfigurationOption Configuration Option}.
-     * 
-     * The {@link ObjectUtils.DynamicObjectKey *Dynamic* Object Key} variant
-     * of this type is {@link DynamicProgramVariableKey}.
-     * 
-     * - If `OptionT` specifies a {@link ObjectUtils.SimpleObjectKey *Simple* Object Key},
-     *   the specified key will be concatenated with the `BaseKeyT`, if applicable, and returned.
-     * 
-     * - If `OptionT` specifies `true` or omits the {@link ConfigurationOption.programVar programVar}
-     *   property, the {@link ConfigurationOption.key Configuration Option Key} will be
-     *   concatenated with the `BaseKeyT`, if applicable, and returned.
-     * 
-     * - If `OptionT` specifies a {@link ObjectUtils.ComplexObjectKey *Complex* Object Key},
-     *   it will be returned as-is.
-     * 
-     * - If `OptionT` specifies `false` for the {@link ConfigurationOption.programVar programVar}
-     *   property, `never` will be returned.
-     * 
-     * @template OptionT    The {@link ConfigurationOption Configuration Option} whose
-     *                      associated Program Variable is being evaluated.
-     * 
-     * @template BaseKeyT   The Base {@link ObjectUtils.ComplexObjectKey Complex Object Key}
-     *                      to use when building the full key, if applicable.
-     * 
-     * @see {@link DynamicProgramVariableKey}
-     * @see {@link ConfigurationOption}
-     * @see {@link SimpleProgramVariableType}
-     */
-    export type ProgramVariableKey <
-        OptionT extends ConfigurationOptionType,
-        BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
-    > = (
-        'programVar' extends keyof OptionT
-            ? (
-                OptionT['programVar'] extends true
-                    ? ArrayUtils.TupleFromTypes<BaseKeyT, OptionT['key']>
-                    : (
-                        OptionT['programVar'] extends ObjectUtils.SimpleObjectKeyType
-                            ? ArrayUtils.TupleFromTypes<BaseKeyT, OptionT['programVar']>
-                            : (
-                                OptionT['programVar'] extends ObjectUtils.ComplexObjectKeyType
-                                    ? OptionT['programVar']
-                                    : never
-                            )
-                    )
-            )
-            : ArrayUtils.TupleFromTypes<BaseKeyT, OptionT['key']>
-    );
-    /**
-     * A helper type used to extract the {@link ObjectUtils.DynamicObjectKey *Dynamic* Object Key}
-     * for a *Simple Program Variable* derived from a
-     * single {@link ConfigurationOption Configuration Option}.
-     * 
-     * The {@link ObjectUtils.ComplexObjectKey *Complex* Object Key} variant
-     * of this type is {@link ProgramVariableKey}.
-     * 
-     * - If `OptionT` specifies a {@link ObjectUtils.SimpleObjectKey *Simple* Object Key},
-     *   the specified key will be concatenated with the `BaseKeyT`, if applicable, and returned.
-     *   If `BaseKeyT` is omitted or `never`, the specified key will be returned as a
-     *   Simple Object Key.
-     * 
-     * - If `OptionT` specifies `true` or omits the {@link ConfigurationOption.programVar programVar}
-     *   property, the {@link ConfigurationOption.key Configuration Option Key} will be
-     *   concatenated with the `BaseKeyT`, if applicable, and returned.
-     *   If `BaseKeyT` is omitted or `never`, the key will be returned as a
-     *   {@link ObjectUtils.SimpleObjectKey Simple Object Key}.
-     * 
-     * - If `OptionT` specifies a {@link ObjectUtils.ComplexObjectKey *Complex* Object Key},
-     *   it will be returned as-is.
-     * 
-     * - If `OptionT` specifies `false` for the {@link ConfigurationOption.programVar programVar}
-     *   property, `never` will be returned.
-     * 
-     * @template OptionT    The {@link ConfigurationOption Configuration Option} whose
-     *                      associated Program Variable is being evaluated.
-     * 
-     * @template BaseKeyT   The Base {@link ObjectUtils.ComplexObjectKey Complex Object Key}
-     *                      to use when building the full key, if applicable.
-     * 
-     * @see {@link ProgramVariableKey}
-     * @see {@link ConfigurationOption}
-     * @see {@link SimpleProgramVariableType}
-     */
-    export type DynamicProgramVariableKey <
-        OptionT extends ConfigurationOptionType,
-        BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
-    > = (
-        ProgramVariableKey<OptionT, BaseKeyT> extends [infer K]
-            ? K
-            : ProgramVariableKey<OptionT, BaseKeyT>
-    );
+
+    // Primary Interfaces
 
     /**
      * An interface representing a *Configuration Option Specification*
@@ -2020,24 +1875,28 @@ export namespace ProgramConfiguration {
      * 
      * The non-templated variant of this type is {@link ConfigurationOptionType}.
      * 
-     * @template KeyT               The type of the {@link key key} property.
+     * @template KeyT               The type of the {@link key} property.
      * 
      * @template BaseKeyT           The Base {@link ObjectUtils.ComplexObjectKey Complex Object Key}
      *                              to use when building the full key, if applicable.
      * 
-     * @template TypeStringT        The type of the {@link type type} property.
+     * @template TypeStringT        The type of the {@link type} property.
      * 
      * @template TypeT              The type of the *Configuration Option* and, potentially,
      *                              the associated *Program Variable* as well, both of which
      *                              are inferred from the `TypeStringT` type parameter.
+     * 
+     * @template RequiredT          The type of the {@link required} property.
+     * 
+     * @template ProgramVarT        The type of the {@link programVar} property.
      * 
      * @template PropertyNamesT     The {@link key keys} of any {@link properties Nested Configuration Options}.
      * 
      * @template FullKeyT           The Full {@link ObjectUtils.ComplexObjectKey Complex Object Key}
      *                              inferred from the `KeyT` and `BaseKeyT`.
      * 
-     * @see {@link ConfigurationOptionMap}
      * @see {@link ConfigurationOptionType}
+     * @see {@link ConfigurationOptionMap}
      * @see {@link ConfigurationOptions}
      */
     export interface ConfigurationOption <
@@ -2205,17 +2064,29 @@ export namespace ProgramConfiguration {
          * used to convert the Raw Configuration Option Value to the
          * associated Program Variable Value.
          * 
+         * The return type of this function determines the type
+         * of the associated Program Variable, along with the
+         * {@link ConfigurationOption.defaultProgramVarValue defaultProgramVarValue}
+         * property of the relevant {@link ConfigurationOption} object.
+         * 
+         * If no conversion function is provided, the Raw Configuration Option
+         * Value will be used for the value of the Program Variable.
+         * 
          * @see {@link validationFn}
          */
-        // TODO: Fix the return type of the function always being `any`.
-        //
-        // This will probably require another template parameter being
-        // added to `ConfigurationOption`, or the `ReturnT` template parameter
-        // being removed from `ProgramVariableConversionFunction`.
         conversionFn?: ProgramVariableConversionFunction<any, TypeT, FullKeyT>;
 
+        /**
+         * A {@link ConfigurationOptionMap} containing one or more
+         * *Nested Configuration Options*.
+         * 
+         * This field is only used when {@link type} is equal to or
+         * contains `'object'`.
+         * 
+         * @see {@link type}
+         */
         properties?: (
-            TypeT extends object
+            object extends TypeT
                 ? ConfigurationOptionMap<
                     PropertyNamesT,
                     FullKeyT,
@@ -2228,6 +2099,18 @@ export namespace ProgramConfiguration {
         );
 
     };
+    /**
+     * An interface representing a *Configuration Option Specification*
+     * containing all of the information needed to work
+     * with a Raw *Configuration Option* and its associated
+     * *Program Variable*, if applicable.
+     * 
+     * This is the non-templated variant of {@link ConfigurationOption}.
+     * 
+     * @see {@link ConfigurationOption}
+     * @see {@link ConfigurationOptionMapType}
+     * @see {@link ConfigurationOptions}
+     */
     export type ConfigurationOptionType = ConfigurationOption<
         ObjectUtils.SimpleObjectKeyType,
         ObjectUtils.ComplexObjectKeyType,
@@ -2237,6 +2120,35 @@ export namespace ProgramConfiguration {
         boolean | ObjectUtils.SimpleObjectKeyType | ObjectUtils.ComplexObjectKeyType
     >;
 
+    /**
+     * An object type containing a mapping of {@link ConfigurationOption.key Configuration Option Keys}
+     * to the respective {@link ConfigurationOption} objects.
+     * 
+     * Not to be confused with {@link ConfigurationOptions}, which
+     * contains the *values* of the defined Configuration Options
+     * as specified by the user.
+     * 
+     * The non-templated variant of this type is {@link ConfigurationOptionMapType}.
+     * 
+     * @template KeysT              The type of the {@link key key} property of the {@link ConfigurationOption} objects.
+     * 
+     * @template BaseKeyT           The Base {@link ObjectUtils.ComplexObjectKey Complex Object Key}
+     *                              to use when building the full key, if applicable.
+     * 
+     * @template TypeStringT        The type of the {@link type type} property of the {@link ConfigurationOption} objects.
+     * 
+     * @template TypeT              The type of the *Configuration Option* and, potentially,
+     *                              the associated *Program Variable* as well, both of which
+     *                              are inferred from the `TypeStringT` type parameter.
+     * 
+     * @template RequiredT          The type of the {@link required} property of the {@link ConfigurationOption} objects.
+     * 
+     * @template ProgramVarT        The type of the {@link programVar} property of the {@link ConfigurationOption} objects.
+     * 
+     * @see {@link ConfigurationOptionMapType}
+     * @see {@link ConfigurationOption}
+     * @see {@link ConfigurationOptions}
+     */
     export type ConfigurationOptionMap <
         KeysT extends ObjectUtils.SimpleObjectKeyType,
         BaseKeyT extends ObjectUtils.ComplexObjectKeyType,
@@ -2251,47 +2163,248 @@ export namespace ProgramConfiguration {
     > = {
         [K in KeysT]: ConfigurationOption<K, BaseKeyT, TypeStringT, TypeT, RequiredT, ProgramVarT>;
     };
+    /**
+     * An object type containing a mapping of {@link ConfigurationOption.key Configuration Option Keys}
+     * to the respective {@link ConfigurationOption} objects.
+     * 
+     * This is the non-templated variant of {@link ConfigurationOptionMap}.
+     * 
+     * @see {@link ConfigurationOptionMap}
+     * @see {@link ConfigurationOptionType}
+     * @see {@link ConfigurationOptions}
+     */
     export type ConfigurationOptionMapType = {
         [K: ObjectKey]: ConfigurationOptionType;
     };
+
+
+    // Helper Types
+
+    /**
+     * A helper type to infer the type of a {@link ConfigurationOption} object.
+     * 
+     * In other words, this type effectively extracts the value of the 
+     * `TypeT` Template Parameter from `T`.
+     * 
+     * @template T  The {@link ConfigurationOption} object whose
+     *              type is being inferred.
+     */
     export type ExtractConfigurationOptionType <T extends ConfigurationOptionType> = (
         T extends { type: infer S }
             ? TypeofType<S>
             : never
     );
-    // export type ConfigurationOptionMap <
-    //     NamesT extends ObjectUtils.DynamicObjectKeyType = ObjectUtils.DynamicObjectKeyType,
-    //     ConfigOptionsT extends ConfigurationOption<NamesT> = ConfigurationOption<NamesT>
-    // > = Map<NamesT, ConfigOptionsT>;
-    // export type ExtractConfigurationOptionNamesFromMap <MapT extends ConfigurationOptionMap> = (
-    //     MapT extends ConfigurationOptionMap<infer N>
-    //         ? N
-    //         : never
-    // );
-    // export type ExtractConfigurationOptionsFromDefinitions <DefsT extends ProgramConfigurationDefinitionsType> = (
-    //     DefsT['configOptions'] extends ProgramConfiguration.ConfigurationOptionMap
-    //         ? ProgramConfiguration.ExtractConfigurationOptionsFromMap<DefsT['configOptions']>
-    //         : never
-    // );
-    // export type ExtractConfigurationOptionsFromMap <MapT extends ConfigurationOptionMap> = (
-    //     MapT extends ConfigurationOptionMap<any, infer O>
-    //         ? O
-    //         : never
-    // );
 
-    export interface ComplexProgramVariable <
+    /**
+     * A helper type used to extract the type of a
+     * *Simple Program Variable* derived from a
+     * single {@link ConfigurationOption Configuration Option}.
+     * 
+     * - If `OptionT` contains a {@link ProgramVariableConversionFunction},
+     *   its {@link ReturnType return type} will be used to infer the
+     *   type of the Program Variable. Otherwise, the type specified
+     *   in the {@link ConfigurationOption.type type} field will be used.
+     * 
+     * - Furthermore, if `OptionT` specifies a {@link ConfigurationOption.defaultProgramVarValue default value}
+     *   for the Program Variable, its type will be added to the inferred type.
+     * 
+     * @template OptionT    The {@link ConfigurationOption Configuration Option} whose
+     *                      associated Program Variable is being evaluated.
+     * 
+     * @see {@link ConfigurationOption}
+     * @see {@link ExtractProgramVariableKey}
+     */
+    export type ExtractSimpleProgramVariableType <OptionT extends ConfigurationOptionType> = (
+        (
+            OptionT['conversionFn'] extends ProgramVariableConversionFunction
+                    ? ReturnType<OptionT['conversionFn']>
+                    : TypeofType<OptionT['type']>
+        ) | (
+            'defaultProgramVarValue' extends keyof OptionT
+                ? OptionT['defaultProgramVarValue']
+                : never
+        )
+    );
+    /**
+     * A helper type used to extract the {@link ObjectUtils.ComplexObjectKey *Complex* Object Key}
+     * for a *Simple Program Variable* derived from a
+     * single {@link ConfigurationOption Configuration Option}.
+     * 
+     * The {@link ObjectUtils.DynamicObjectKey *Dynamic* Object Key} variant
+     * of this type is {@link ExtractDynamicSimpleProgramVariableKey}.
+     * 
+     * - If `OptionT` specifies a {@link ObjectUtils.SimpleObjectKey *Simple* Object Key},
+     *   the specified key will be concatenated with the `BaseKeyT`, if applicable, and returned.
+     * 
+     * - If `OptionT` specifies `true` or omits the {@link ConfigurationOption.programVar programVar}
+     *   property, the {@link ConfigurationOption.key Configuration Option Key} will be
+     *   concatenated with the `BaseKeyT`, if applicable, and returned.
+     * 
+     * - If `OptionT` specifies a {@link ObjectUtils.ComplexObjectKey *Complex* Object Key},
+     *   it will be returned as-is.
+     * 
+     * - If `OptionT` specifies `false` for the {@link ConfigurationOption.programVar programVar}
+     *   property, `never` will be returned.
+     * 
+     * @template OptionT    The {@link ConfigurationOption Configuration Option} whose
+     *                      associated Program Variable is being evaluated.
+     * 
+     * @template BaseKeyT   The Base {@link ObjectUtils.ComplexObjectKey Complex Object Key}
+     *                      to use when building the full key, if applicable.
+     * 
+     * @see {@link ExtractDynamicSimpleProgramVariableKey}
+     * @see {@link ConfigurationOption}
+     * @see {@link ExtractSimpleProgramVariableType}
+     */
+    export type ExtractProgramVariableKey <
+        OptionT extends ConfigurationOptionType,
+        BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
+    > = (
+        'programVar' extends keyof OptionT
+            ? (
+                OptionT['programVar'] extends true
+                    ? ArrayUtils.TupleFromTypes<BaseKeyT, OptionT['key']>
+                    : (
+                        OptionT['programVar'] extends ObjectUtils.SimpleObjectKeyType
+                            ? ArrayUtils.TupleFromTypes<BaseKeyT, OptionT['programVar']>
+                            : (
+                                OptionT['programVar'] extends ObjectUtils.ComplexObjectKeyType
+                                    ? OptionT['programVar']
+                                    : never
+                            )
+                    )
+            )
+            : ArrayUtils.TupleFromTypes<BaseKeyT, OptionT['key']>
+    );
+    /**
+     * A helper type used to extract the {@link ObjectUtils.DynamicObjectKey *Dynamic* Object Key}
+     * for a *Simple Program Variable* derived from a
+     * single {@link ConfigurationOption Configuration Option}.
+     * 
+     * The {@link ObjectUtils.ComplexObjectKey *Complex* Object Key} variant
+     * of this type is {@link ExtractProgramVariableKey}.
+     * 
+     * - If `OptionT` specifies a {@link ObjectUtils.SimpleObjectKey *Simple* Object Key},
+     *   the specified key will be concatenated with the `BaseKeyT`, if applicable, and returned.
+     *   If `BaseKeyT` is omitted or `never`, the specified key will be returned as a
+     *   Simple Object Key.
+     * 
+     * - If `OptionT` specifies `true` or omits the {@link ConfigurationOption.programVar programVar}
+     *   property, the {@link ConfigurationOption.key Configuration Option Key} will be
+     *   concatenated with the `BaseKeyT`, if applicable, and returned.
+     *   If `BaseKeyT` is omitted or `never`, the key will be returned as a
+     *   {@link ObjectUtils.SimpleObjectKey Simple Object Key}.
+     * 
+     * - If `OptionT` specifies a {@link ObjectUtils.ComplexObjectKey *Complex* Object Key},
+     *   it will be returned as-is.
+     * 
+     * - If `OptionT` specifies `false` for the {@link ConfigurationOption.programVar programVar}
+     *   property, `never` will be returned.
+     * 
+     * @template OptionT    The {@link ConfigurationOption Configuration Option} whose
+     *                      associated Program Variable is being evaluated.
+     * 
+     * @template BaseKeyT   The Base {@link ObjectUtils.ComplexObjectKey Complex Object Key}
+     *                      to use when building the full key, if applicable.
+     * 
+     * @see {@link ExtractProgramVariableKey}
+     * @see {@link ConfigurationOption}
+     * @see {@link ExtractSimpleProgramVariableType}
+     */
+    export type ExtractDynamicSimpleProgramVariableKey <
+        OptionT extends ConfigurationOptionType,
+        BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
+    > = (
+        ExtractProgramVariableKey<OptionT, BaseKeyT> extends [infer K]
+            ? K
+            : ExtractProgramVariableKey<OptionT, BaseKeyT>
+    );
+
+
+    /* Complex Program Variables */
+    // Callback Function Types
+
+    /**
+     * A *Complex Program Variable Conversion Function* used to
+     * convert one or more Raw *Configuration Options* into
+     * a single *Program Variable*.
+     * 
+     * Complex Program Variable Conversion Functions are most commonly found
+     * attached to the {@link ComplexProgramVariable.conversionFn conversionFn}
+     * property of a {@link ComplexProgramVariable} object.
+     * 
+     * @template OptionT        The {@link ConfigurationOptionMap} type used to
+     *                          determine the values passed to the `configOptions` argument.
+     * 
+     * @template ReturnT        The return type of the function.
+     * 
+     * @param configOptions     The {@link ConfigurationOptions Raw Configuration Options}
+     *                          available to derive the Program Variable from.
+     * 
+     * @returns                 The converted value to use for the Program Variable.
+     * 
+     *                          The return type of this function solely determines the type
+     *                          of the associated Complex Program Variable.
+     * 
+     * @see {@link ConfigurationOptionValidationFunction}
+     * @see {@link ProgramVariableConversionFunction}
+     */
+    export type ComplexProgramVariableConversionFunction <
         OptionsT extends ConfigurationOptionMapType = ConfigurationOptionMapType,
-        // ProgramVarT extends ObjectUtils.DynamicObjectKeyType = ObjectUtils.DynamicObjectKeyType,
-        // ConversionFunctionT extends ProgramVariableFunction<OptionsT> = ProgramVariableFunction<OptionsT>,
-        // DefaultValueT = undefined
+        ReturnT = any
+    > = ( configOptions: ConfigurationOptions<OptionsT> ) => ReturnT;
+
+
+    // Primary Interfaces
+
+    /**
+     * An interface representing a *Complex Program Variable Specification*
+     * containing all of the information needed to transform one or more
+     * {@link ConfigurationOption Configuration Options} into a single
+     * *Program Variable*.
+     * 
+     * The non-templated variant of this type is {@link ComplexProgramVariableType}.
+     * 
+     * @template OptionsT   A {@link ConfigurationOptionMap} containing the available
+     *                      {@link ConfigurationOption Configuration Options}.
+     * 
+     * @see {@link ComplexProgramVariableType}
+     * @see {@link ComplexProgramVariableMap}
+     * @see {@link ConfigurationOption}
+     */
+    export interface ComplexProgramVariable <
+        OptionsT extends ConfigurationOptionMapType = ConfigurationOptionMapType
     > {
 
+        /**
+         * The {@link ObjectUtils.DynamicObjectKeyType *Key*}
+         * for the Complex Program Variable.
+         */
         programVar: ObjectUtils.DynamicObjectKeyType;
+
+        /**
+         * The {@link ComplexProgramVariableConversionFunction Complex Program Variable Conversion Function}
+         * responsible for converting one or more Raw Configuration Option Values to the
+         * associated Complex Program Variable Value.
+         * 
+         * The return type of this function determines the type
+         * of the Complex Program Variable.
+         */
         conversionFn: ComplexProgramVariableConversionFunction<OptionsT>;
+
+        /**
+         * Indicates whether the Complex Program Variable is
+         * considered to be *Sensitive* or not.
+         * 
+         * *Sensitive Program Variables* can be {@link SensitiveProperties.redact redacted} at runtime when being
+         * retrieved using the {@link ProgramConfiguration.prototype.getConfigVars `getConfigVars()`} method,
+         * obfuscating their values before returning them.
+         */
         sensitive?: boolean;
 
     }
     export type ComplexProgramVariableType = ComplexProgramVariable<ConfigurationOptionMapType>; 
+
     export type ComplexProgramVariableMap <
         KeysT extends ObjectUtils.DynamicObjectKeyType,
         OptionsT extends ConfigurationOptionMapType,
@@ -2301,6 +2414,9 @@ export namespace ProgramConfiguration {
         ObjectUtils.DynamicObjectKeyType,
         ConfigurationOptionMapType
     >;
+
+    // Helper Types
+
     export type ExtractComplexProgramVariableKeysFromMap <MapT extends ComplexProgramVariableMapType> = (
         MapT extends ComplexProgramVariableMap<infer K, any, any>
             ? K
@@ -2535,8 +2651,8 @@ export namespace ProgramConfiguration {
                             T['properties'][K],
                             (
                                 T['properties'][K]['programVar'] extends ObjectUtils.ComplexObjectKeyType
-                                    ? ProgramVariableKey< T['properties'][K] >
-                                    : ArrayUtils.TupleFromTypes< BaseKeyT, ProgramVariableKey<T['properties'][K]> >
+                                    ? ExtractProgramVariableKey< T['properties'][K] >
+                                    : ArrayUtils.TupleFromTypes< BaseKeyT, ExtractProgramVariableKey<T['properties'][K]> >
                             )
                         >;
                     } extends infer O
@@ -2804,7 +2920,7 @@ export namespace ProgramConfiguration {
                                 )
                             >
                     ),
-                    SimpleProgramVariableType<T[K]>
+                    ExtractSimpleProgramVariableType<T[K]>
                 >
         ) & (
             T[K]['properties'] extends ConfigurationOptionMapType
