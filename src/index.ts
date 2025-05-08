@@ -55,7 +55,7 @@ import colorizePositiveOutput = ConsoleUtils.colorizePositiveOutput;
 import highlightPositiveOutput = ConsoleUtils.highlightPositiveOutput;
 import toggleCursor = ConsoleUtils.toggleCursor;
 import formatNum = NumberUtils.format;
-import { BaseProgramConfiguration, ensureConfigFileExists, getProgramConfig } from "./config.js";
+import { BaseProgramConfiguration, getProgramConfig, BaseProgramConfigurationFactory } from "./config.js";
 
 
 /* Main Program Types */
@@ -1541,8 +1541,9 @@ function printRuntimeVariables (  ): void {
 
         // const programVars = getProgramVars();
         // const programConfig = await getProgramConfig();
-        await ensureConfigFileExists(abortController.signal);
-        const programVars = (await getProgramConfig()).getProgramVars();
+        const programVars = (await (new BaseProgramConfigurationFactory(false))
+            .prepare(abortController.signal))
+            .getProgramVars();
         
         if (useVerboseDataLogging()) {
             await printProgramConfiguration();
