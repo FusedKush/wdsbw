@@ -3333,9 +3333,12 @@ export abstract class ProgramConfigurationFactory <
         ReturnT extends ProgramConfiguration<true, DefsT> | (SuppressErrorsT extends true ? null : never)
     > ( signal?: AbortSignal ): Promise<ReturnT> => (
         configFileExists()
-            ? (console.log("Program Configuration Options Not Found! Beginning First-Time Setup..."), this.fetch())
-            : this.generate(signal)
-        );
+            ? this.fetch()
+            : (
+                console.log("Program Configuration Options Not Found! Beginning First-Time Setup..."),
+                this.generate(signal)
+            )
+    );
 
 }
 
