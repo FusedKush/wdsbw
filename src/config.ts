@@ -2403,35 +2403,134 @@ export namespace ProgramConfiguration {
         sensitive?: boolean;
 
     }
+    /**
+     * An interface representing a *Complex Program Variable Specification*
+     * containing all of the information needed to transform one or more
+     * {@link ConfigurationOption Configuration Options} into a single
+     * *Program Variable*.
+     * 
+     * This is the non-templated variant of {@link ComplexProgramVariable}.
+     * 
+     * @see {@link ComplexProgramVariable}
+     * @see {@link ComplexProgramVariableMapType}
+     * @see {@link ConfigurationOptionType}
+     */
     export type ComplexProgramVariableType = ComplexProgramVariable<ConfigurationOptionMapType>; 
 
+    /**
+     * An object type containing a mapping of {@link ComplexProgramVariable.programVar Complex Program Variable Keys}
+     * to the respective {@link ComplexProgramVariable} objects.
+     * 
+     * Not to be confused with {@link ProgramVariables}, which
+     * contains the *values* of the defined Program Variables.
+     * 
+     * The non-templated variant of this type is {@link ComplexProgramVariableMapType}.
+     * 
+     * @template KeysT                  The type of the {@link ComplexProgramVariable.programVar programVar}
+     *                                  property of the {@link ComplexProgramVariable} objects.
+     * 
+     * @template OptionsT               The type of the {@link ConfigurationOptionMap Configuration Option Map}
+     *                                  available to the {@link ComplexProgramVariable} objects.
+     * 
+     * @template ComplexProgramVarsT    The inferred type of the {@link ComplexProgramVariable} objects.
+     * 
+     * @see {@link ComplexProgramVariableMapType}
+     * @see {@link ConfigurationOption}
+     * @see {@link ProgramVariables}
+     */
     export type ComplexProgramVariableMap <
         KeysT extends ObjectUtils.DynamicObjectKeyType,
         OptionsT extends ConfigurationOptionMapType,
         ComplexProgramVarsT extends ComplexProgramVariable<OptionsT> = ComplexProgramVariable<OptionsT>
     > = Map<KeysT, ComplexProgramVarsT>;
+    /**
+     * An object type containing a mapping of {@link ComplexProgramVariable.programVar Complex Program Variable Keys}
+     * to the respective {@link ComplexProgramVariable} objects.
+     * 
+     * This is the non-templated variant of {@link ComplexProgramVariableMap}.
+     * 
+     * @see {@link ComplexProgramVariableMap}
+     * @see {@link ConfigurationOptionType}
+     * @see {@link ProgramVariables}
+     */
     export type ComplexProgramVariableMapType = ComplexProgramVariableMap<
         ObjectUtils.DynamicObjectKeyType,
         ConfigurationOptionMapType
     >;
 
+
     // Helper Types
 
-    export type ExtractComplexProgramVariableKeysFromMap <MapT extends ComplexProgramVariableMapType> = (
-        MapT extends ComplexProgramVariableMap<infer K, any, any>
+    /**
+     * A helper type used to extract the
+     * {@link ComplexProgramVariable.programVar Complex Program Variable Keys}
+     * from a {@link ComplexProgramVariableMap}.
+     * 
+     * The variant of this type that extracts the {@link ComplexProgramVariable} objects
+     * themselves rather than just the {@link ComplexProgramVariable.programVar keys}
+     * is {@link ExtractComplexProgramVariablesFromMap}.
+     * 
+     * @template T  The {@link ComplexProgramVariableMap} whose 
+     *              {@link ComplexProgramVariable.programVar Complex Program Variable Keys}
+     *              are being extracted.
+     * 
+     * @see {@link ExtractComplexProgramVariablesFromMap}
+     */
+    export type ExtractComplexProgramVariableKeysFromMap <T extends ComplexProgramVariableMapType> = (
+        T extends ComplexProgramVariableMap<infer K, any, any>
             ? K
             : never
     );
-    export type ExtractComplexProgramVariablesFromMap <MapT extends ComplexProgramVariableMapType> = (
-        MapT extends ComplexProgramVariableMap<any, infer O, infer V>
+    /**
+     * A helper type used to extract the
+     * {@link ComplexProgramVariable Complex Program Variables}
+     * from a {@link ComplexProgramVariableMap}.
+     * 
+     * The variant of this type that extracts the
+     * {@link ComplexProgramVariable.programVar Complex Program Variable Keys}
+     * rather than the {@link ComplexProgramVariable} objects themselves
+     * is {@link ExtractComplexProgramVariableKeysFromMap}.
+     * 
+     * The variant of this type that extracts the {@link ComplexProgramVariable Complex Program Variables}
+     * from the {@link ComplexProgramVariableMap} contained within a
+     * {@link ProgramConfigurationDefinitions Program Configuration Definition} is
+     * {@link ExtractComplexProgramVariablesFromDefinitions}.
+     * 
+     * @template T  The {@link ComplexProgramVariableMap} whose 
+     *              {@link ComplexProgramVariable.programVar Complex Program Variable Keys}
+     *              are being extracted.
+     * 
+     * @see {@link ExtractComplexProgramVariableKeysFromMap}
+     * @see {@link ExtractComplexProgramVariablesFromDefinitions}
+     */
+    export type ExtractComplexProgramVariablesFromMap <T extends ComplexProgramVariableMapType> = (
+        T extends ComplexProgramVariableMap<any, infer O, infer V>
             ? V
             : never
     );
+    /**
+     * A helper type used to extract the
+     * {@link ComplexProgramVariable Complex Program Variables}
+     * from the {@link ComplexProgramVariableMap} contained within
+     * a {@link ProgramConfigurationDefinitions Program Configuration Definition}.
+     * 
+     * The variant of this type that extracts the {@link ComplexProgramVariable Complex Program Variables}
+     * directly from a {@link ComplexProgramVariableMap} is {@link ExtractComplexProgramVariablesFromMap}.
+     * 
+     * @template T  The {@link ProgramConfigurationDefinitions} object containing
+     *              the {@link ComplexProgramVariableMap} whose {@link ComplexProgramVariable.programVar Complex Program Variable Keys}
+     *              are being extracted.
+     * 
+     * @see {@link ExtractComplexProgramVariablesFromMap}
+     */
     export type ExtractComplexProgramVariablesFromDefinitions <DefsT extends ProgramConfigurationDefinitionsType> = (
         DefsT['complexProgramVars'] extends ProgramConfiguration.ComplexProgramVariableMapType
             ? ProgramConfiguration.ExtractComplexProgramVariablesFromMap<DefsT['complexProgramVars']>
             : never
     );
+
+
+    /* Program Configuration Definitions */
 
     export type ProgramConfigurationDefinitions <
         OptionsT extends ConfigurationOptionMapType | undefined,
