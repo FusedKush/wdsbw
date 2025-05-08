@@ -44,6 +44,7 @@ import {
 // import { BASE_PUPPETEER_SCREENSHOTS_PATH, ReconnectionMethod } from "../../api/index.js";
 import puppeteer, { BoxModel, Browser, Page } from "puppeteer";
 import { existsSync, mkdirSync } from "fs";
+import { scanForWifiNetwork } from "./common.js";
 
 
 /**
@@ -560,34 +561,64 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
             );
     
             verboseLog("[+] Scanning for Available Wi-Fi Networks...");
-            await processAction(waitAndClick, page, ELEMENT_SELECTORS.wdsScanButton);
-            await processAction(page, 'waitForSelector', ELEMENT_SELECTORS.wdsScanResultsTable);
-            let scanResults = await processAction(page, '$$', ELEMENT_SELECTORS.wdsScanResultTableRows);
-            let mainRouterResultIndex: number = -1;
+            // await processAction(waitAndClick, page, ELEMENT_SELECTORS.wdsScanButton);
+            // await processAction(page, 'waitForSelector', ELEMENT_SELECTORS.wdsScanResultsTable);
+            // let scanResults = await processAction(page, '$$', ELEMENT_SELECTORS.wdsScanResultTableRows);
+            // let mainRouterResultIndex: number = -1;
     
-            verboseLog("[+] Evaluating WDS Scan Results...");
+            // verboseLog("[+] Evaluating WDS Scan Results...");
     
-            for (let i = 0; i < scanResults.length; i++) {
-                mainRouterResultIndex = await processAction(
-                    scanResults[i], '$eval',
-                    'td:nth-child(3)',
-                    async ( element: HTMLTableCellElement, index: number, mainRouterSsid: string ) => (
-                        (element.innerText == mainRouterSsid)
-                            ? index
-                            : -1
-                    ),
-                    i, programVars.mainRouter.ssid
-                ) as number;
+            // for (let i = 0; i < scanResults.length; i++) {
+            //     mainRouterResultIndex = await processAction(
+            //         scanResults[i], '$eval',
+            //         'td:nth-child(3)',
+            //         async ( element: HTMLTableCellElement, index: number, mainRouterSsid: string ) => (
+            //             (element.innerText == mainRouterSsid)
+            //                 ? index
+            //                 : -1
+            //         ),
+            //         i, programVars.mainRouter.ssid
+            //     ) as number;
     
-                if (mainRouterResultIndex > -1)
-                    break;
-            }
+            //     if (mainRouterResultIndex > -1)
+            //         break;
+            // }
     
-            if (mainRouterResultIndex < 0)
-                throw new Error("The Main Router was not found in the WDS Scan Results!");
+            // if (mainRouterResultIndex < 0)
+            //     throw new Error("The Main Router was not found in the WDS Scan Results!");
     
-            verboseLog("[*] Main Router Found!");
-            await processAction(scanResults[mainRouterResultIndex], '$', 'td:last-child span').then(
+            const scanResultElement = await scanForWifiNetwork(
+                async () => {
+
+                    await processAction(waitAndClick, page, ELEMENT_SELECTORS.wdsScanButton);
+                    await processAction(page, 'waitForSelector', ELEMENT_SELECTORS.wdsScanResultsTable);
+                    let scanResults = await processAction(page, '$$', ELEMENT_SELECTORS.wdsScanResultTableRows);
+                    let result: puppeteer.ElementHandle<Element> | null = null;
+            
+                    // verboseLog("[+] Evaluating WDS Scan Results...");
+            
+                    for (let i = 0; i < scanResults.length; i++) {
+                        result = await processAction(
+                            scanResults[i], '$eval',
+                            'td:nth-child(3)',
+                            async ( element: HTMLTableCellElement, mainRouterSsid: string ) => (
+                                (element.innerText == mainRouterSsid)
+                                    ? element
+                                    : null
+                            ),
+                            scanResults[i], programVars.mainRouter.ssid
+                        ) as puppeteer.ElementHandle<Element> | null;
+            
+                        if (result)
+                            return result;
+                    }
+
+                },
+                RECONNECTION_METHOD
+            ).catch((error) => { throw error });
+
+            // verboseLog("[*] Main Router Found!");
+            await processAction(scanResultElement, '$', 'td:last-child span').then(
                 (element) => element!.click()
             );
     
@@ -649,7 +680,7 @@ const setup: ReconnectionMethod.SetupFunction = (wasDeferred, signal): Abortable
  * re-establishing the WDS Bridge by programatically navigating through
  * the Browser-Based Router Management Interface.
  */
-export default new ReconnectionMethod(
+export const RECONNECTION_METHOD = new ReconnectionMethod(
     RECONNECTION_METHOD_NAME,
     'Puppeteer',
     ReconnectionMethod.MethodType.PUPPETEER,
@@ -657,6 +688,7 @@ export default new ReconnectionMethod(
     reconnect,
     setup
 );
+export default RECONNECTION_METHOD;
 
 // /**
 //  * The {@link ReconnectionMethod} definition for the
