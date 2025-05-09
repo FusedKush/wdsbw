@@ -4223,19 +4223,23 @@ export namespace ObjectUtils {
         BaseKeyT extends ObjectKey[] = never,
         ResultsT extends ObjectKey[] = never
     > = (
-        ExtractObjectType<T> extends infer O
+        IsAnyType<T> extends false
             ? (
-                [O] extends [never]
-                    ? ResultsT
-                    : {
-                        [K in keyof O]-?: ComplexObjectKeyHelper<
-                            O[K],
-                            ArrayUtils.TupleFromTypes<BaseKeyT, K>,
-                            ArrayUtils.TupleFromTypes<BaseKeyT, K> | ResultsT
-                        >
-                    }[keyof O]
+                ExtractObjectType<T> extends infer O
+                    ? (
+                        [O] extends [never]
+                            ? ResultsT
+                            : {
+                                [K in keyof O]-?: ComplexObjectKeyHelper<
+                                    O[K],
+                                    ArrayUtils.TupleFromTypes<BaseKeyT, K>,
+                                    ArrayUtils.TupleFromTypes<BaseKeyT, K> | ResultsT
+                                >
+                            }[keyof O]
+                    )
+                    : ResultsT
             )
-            : ResultsT
+            : ObjectKey[]
     );
     /**
      * A union type representing a *Complex Object Key*, or an object key
@@ -4262,11 +4266,7 @@ export namespace ObjectUtils {
      * @see {@link ComplexObjectKey}
      * @see {@link NestedObjectKey}
      */
-    export type ComplexObjectKey <T extends object> = (
-        IsAnyType<T> extends false
-            ? ComplexObjectKeyHelper<T>
-            : ObjectKey[]
-    );
+    export type ComplexObjectKey <T extends object> = ComplexObjectKeyHelper<T>;
     // export type ComplexObjectKey <T extends TrueObject> = {
     //     [K in keyof T]-?: (
     //         [Extract<T[K], TrueObject>] extends [never]
