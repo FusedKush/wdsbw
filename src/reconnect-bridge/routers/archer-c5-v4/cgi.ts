@@ -1928,58 +1928,64 @@ async function scanWifiNetworks (): Promise<WifiNetworkScanResultSet | null> {
  * @link [*Retrieving the Main Router Wi-Fi Network Properties*](./cgi-reference.md)
  * @see {@link scanWifiNetworks `scanWifiNetworks()`}
  */
-const getMainRouterWifiNetworkProperties = (): Promise<WifiNetworkScanResult | null> => new Promise(
+const getMainRouterWifiNetworkProperties = async (): Promise<WifiNetworkScanResult | null> => {
+
+    const programVars = customEnvVarManager.getProgramVars();
+
+    verboseLog("[+] Attempting to Retrieve the Main Router Wi-Fi Network Properties...");
+    return scanForWifiNetwork(
+        async () => {
+
+            const networks = await scanWifiNetworks();
+
+            if (networks && programVars.mainRouter.ssid in networks) {
+                verboseDataLog(networks[programVars.mainRouter.ssid]);
+                return networks[programVars.mainRouter.ssid];
+            }
+
+        },
+        RECONNECTION_METHOD
+    ).catch((error) => { throw error });
+
+} /* new Promise(
     async (resolve, reject) => {
 
-        // const MAX_RETRIES = 2;
-        // const RETRY_COOLDOWN = 2500;
+        const MAX_RETRIES = 2;
+        const RETRY_COOLDOWN = 2500;
 
         const programVars = customEnvVarManager.getProgramVars();
-        // let attempts = 0;
+        let attempts = 0;
 
-        // const scan = async () => {
+        const scan = async () => {
 
-        //     let networks = await scanWifiNetworks();
-        //     attempts++;
+            let networks = await scanWifiNetworks();
+            attempts++;
 
-        //     if (networks && programVars.mainRouter.ssid in networks) {
-        //         verboseLog("[*] Successfully Retrieved the Current Main Router Wi-Fi Network Properties!");
-        //         verboseDataLog(networks[programVars.mainRouter.ssid]);
-        //         resolve(networks[programVars.mainRouter.ssid]);
-        //     }
-        //     else if (attempts <= MAX_RETRIES) {
-        //         verboseLog(`[/] Failed to locate the Main Router Wi-Fi Network! Retrying in ${RETRY_COOLDOWN}ms...`);
-        //         setTimeout(scan, RETRY_COOLDOWN);
-        //     }
-        //     else {
-        //         throw new ReconnectionMethod.MainRouterError(
-        //             "Failed to locate the Main Router Wi-Fi Network! The Main Router may or may not be down.",
-        //             RECONNECTION_METHOD
-        //         );
-        //         // console.error(`Failed to locate the Main Router Wi-Fi Network! The Main Router may or may not be down.`);
-        //         // resolve(null);
-        //     }
+            if (networks && programVars.mainRouter.ssid in networks) {
+                verboseLog("[*] Successfully Retrieved the Current Main Router Wi-Fi Network Properties!");
+                verboseDataLog(networks[programVars.mainRouter.ssid]);
+                resolve(networks[programVars.mainRouter.ssid]);
+            }
+            else if (attempts <= MAX_RETRIES) {
+                verboseLog(`[/] Failed to locate the Main Router Wi-Fi Network! Retrying in ${RETRY_COOLDOWN}ms...`);
+                setTimeout(scan, RETRY_COOLDOWN);
+            }
+            else {
+                throw new ReconnectionMethod.MainRouterError(
+                    "Failed to locate the Main Router Wi-Fi Network! The Main Router may or may not be down.",
+                    RECONNECTION_METHOD
+                );
+                // console.error(`Failed to locate the Main Router Wi-Fi Network! The Main Router may or may not be down.`);
+                // resolve(null);
+            }
 
-        // };
+        };
 
         verboseLog("[+] Attempting to Retrieve the Main Router Wi-Fi Network Properties...");
-        // scan();
-        return scanForWifiNetwork(
-            async () => {
-
-                const networks = await scanWifiNetworks();
-
-                if (networks && programVars.mainRouter.ssid in networks) {
-                    verboseDataLog(networks[programVars.mainRouter.ssid]);
-                    return networks[programVars.mainRouter.ssid];
-                }
-
-            },
-            RECONNECTION_METHOD
-        ).catch((error) => { throw error });
+        scan();
 
     }
-);
+); */
 
 /**
  * Retrieve the Bridge Router Wi-Fi Network Properties from the Bridge Router CGI.
