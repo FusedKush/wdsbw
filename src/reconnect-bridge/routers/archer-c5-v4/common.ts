@@ -124,10 +124,10 @@ export const scanForWifiNetwork = <ScanFnT extends WifiNetworkScanFunction> (
             setTimeout(scan, scanOptions.retryCooldown);
         }
         else {
-            throw new ReconnectionMethod.MainRouterError(
+            reject(new ReconnectionMethod.MainRouterError(
                 "Failed to locate the Main Router Wi-Fi Network! The Main Router may or may not be down.",
                 reconnectionMethod
-            );
+            ));
         }
     };
 
