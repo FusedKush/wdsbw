@@ -6632,10 +6632,14 @@ export namespace SensitiveProperties {
      */
     export function redact <
         ObjectT extends object,
-        SensitivePropertiesT extends ObjectUtils.SimpleObjectKey<ObjectT>[]
+        SensitivePropertiesT extends (
+            [ObjectUtils.SimpleObjectKey<ObjectT>] extends [never]
+                ? ObjectUtils.SimpleObjectKeyType
+                : ObjectUtils.SimpleObjectKey<ObjectT>
+        )
     > (
         obj: ObjectT,
-        sensitiveProperties: SensitivePropertiesT,
+        sensitiveProperties: SensitivePropertiesT[],
         sensitivity?: RedactionSensitivity
     ): RedactedObject<ObjectT, SensitivePropertiesT>;
     /**
@@ -6685,10 +6689,14 @@ export namespace SensitiveProperties {
      */
     export function redact <
         ObjectT extends object,
-        SensitivePropertiesT extends ObjectUtils.ComplexObjectKey<ObjectT>
+        SensitivePropertiesT extends (
+            [ObjectUtils.ComplexObjectKey<ObjectT>] extends [never]
+                ? ObjectUtils.ComplexObjectKeyType
+                : ObjectUtils.ComplexObjectKey<ObjectT>
+        )
     > (
         obj: ObjectT,
-        sensitiveProperties: SensitivePropertiesT,
+        sensitiveProperties: SensitivePropertiesT[],
         sensitivity?: RedactionSensitivity
     ): RedactedObject<ObjectT, SensitivePropertiesT>;
     /**
@@ -6787,14 +6795,20 @@ export namespace SensitiveProperties {
     export function redact <
         T extends object,
         U extends (
-            ObjectUtils.DynamicObjectKey<T> | PropertySensitivityMap<T>
+            ObjectUtils.DynamicObjectKey<T>[] | PropertySensitivityMap<T>
         ),
         V extends (
             U extends ObjectUtils.DynamicObjectKey<T>
                 ? RedactionSensitivity | undefined
                 : undefined
-        )
-    > ( obj: T, sensitiveProperties: U, sensitivity?: V ): RedactedObject<T, U> {
+        ),
+        ReturnT extends RedactedObject<
+            T,
+            U extends ObjectUtils.DynamicObjectKey<T>[]
+                ? U[number]
+                : U
+        >
+    > ( obj: T, sensitiveProperties: U, sensitivity?: V ): ReturnT {
     
         // let redactedObj = Object.create(Object.getPrototypeOf(obj)) as ObjectRecord<T>;
         let propertyMap: PropertySensitivityMap<T, ObjectUtils.ComplexObjectKey<T>> = (() => {
@@ -6847,7 +6861,7 @@ export namespace SensitiveProperties {
                 return `<Sensitive${info} Data>`;
 
             }
-        ) as unknown as RedactedObject<T, U>;
+        ) as ReturnT;
     
         // for (const key in obj) {
         //     const value = obj[key];
