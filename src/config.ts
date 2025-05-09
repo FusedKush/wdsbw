@@ -541,7 +541,7 @@ export abstract class ProgramConfiguration <
      * @see {@link sensitiveProgramVars}
      * @see {@link getConfigVars `getConfigVars(true)`}
      */
-    readonly sensitiveConfigVars: ProgramConfiguration.SensitiveConfigurationOptions<MergedDefsT['configOptions']>[] = [];
+    readonly sensitiveConfigVars: ObjectUtils.ComplexObjectKeyType[];
     /**
      * An array containing the {@link ObjectUtils.ComplexObjectKey Complex Object Key}
      * corresponding to each of the *{@link SensitiveProperties Sensitive} Program Variables*
@@ -550,10 +550,7 @@ export abstract class ProgramConfiguration <
      * @see {@link sensitiveConfigVars}
      * @see {@link getProgramVars `getProgramVars(true)`}
      */
-    readonly sensitiveProgramVars: ProgramConfiguration.SensitiveProgramVariables<
-        MergedDefsT['configOptions'],
-        ProgramConfiguration.ExtractComplexProgramVariablesFromDefinitions<MergedDefsT>
-    >[];
+    readonly sensitiveProgramVars: ObjectUtils.ComplexObjectKeyType[];
 
     /**
      * Contains the current Configuration Options associated with this object.
@@ -678,46 +675,6 @@ export abstract class ProgramConfiguration <
             }
         }
         else {
-            /**
-             * Parse one level of Configuration Options,
-             * adding each one to the appropriate Configuration Options
-             * and Program Variables objects.
-             * 
-             * @param options   The {@link ProgramConfiguration.ConfigurationOptionMap Configuration Options}
-             *                  being parsed.
-             * 
-             * @param baseKey   The base object key associated with the specified `options`.
-             * 
-             *                  In other words, the {@link ObjectUtils.ComplexObjectKey Complex Object Key}
-             *                  referring to the specified `options` object within its parent object(s).
-             */
-            const parseConfigOptions = (
-                options: ProgramConfiguration.ConfigurationOptionMapType,
-                baseKey?: ObjectUtils.ComplexObjectKeyType
-            ) => {
-
-                if (!baseKey)
-                    baseKey = [];
-
-                for (const key in options) {
-                    const fullKey = baseKey.concat(key);
-                    const option = options[key];
-    
-                    if (option.sensitive) {
-                        this.sensitiveConfigVars.push(fullKey as any);
-    
-                        if (option.programVar !== false) {
-                            this.sensitiveProgramVars.push(
-                                ProgramConfiguration.#getProgramVarFromConfigOption(option, baseKey) as any
-                            );
-                        }
-                    }
-                    if (option.type == 'object' && option.properties) {
-                        parseConfigOptions(option.properties, fullKey);
-                    }
-                }
-
-            };
             const definitions = defsOrOtherConfig as DefsT;
             const configOptions = (() => {
 
@@ -748,15 +705,58 @@ export abstract class ProgramConfiguration <
 
             })();
 
+            let sensitiveConfigVars: ObjectUtils.ComplexObjectKeyType[] = [];
+            let sensitiveProgramVars: ObjectUtils.ComplexObjectKeyType[] = [];
+
+            /**
+             * Parse one level of Configuration Options,
+             * adding each one to the appropriate Configuration Options
+             * and Program Variables objects.
+             * 
+             * @param options   The {@link ProgramConfiguration.ConfigurationOptionMap Configuration Options}
+             *                  being parsed.
+             * 
+             * @param baseKey   The base object key associated with the specified `options`.
+             * 
+             *                  In other words, the {@link ObjectUtils.ComplexObjectKey Complex Object Key}
+             *                  referring to the specified `options` object within its parent object(s).
+             */
+            const parseConfigOptions = (
+                options: ProgramConfiguration.ConfigurationOptionMapType,
+                baseKey?: ObjectUtils.ComplexObjectKeyType
+            ) => {
+
+                if (!baseKey)
+                    baseKey = [];
+
+                for (const key in options) {
+                    const fullKey = baseKey.concat(key);
+                    const option = options[key];
+    
+                    if (option.sensitive) {
+                        sensitiveConfigVars.push(fullKey);
+    
+                        if (option.programVar !== false) {
+                            sensitiveProgramVars.push(
+                                ProgramConfiguration.#getProgramVarFromConfigOption(option, baseKey)!
+                            );
+                        }
+                    }
+                    if (option.type == 'object' && option.properties) {
+                        parseConfigOptions(option.properties, fullKey);
+                    }
+                }
+
+            };
+
             this.definitions = {
                 configOptions: configOptions,
                 complexProgramVars: new Map(...complexProgramVars)
             } as MergedDefsT;
-
-            this.sensitiveConfigVars = [];
-            this.sensitiveProgramVars = [];
             
             parseConfigOptions(this.definitions.configOptions);
+            this.sensitiveConfigVars = sensitiveConfigVars;
+            this.sensitiveProgramVars = sensitiveProgramVars;
         }
 
     }
