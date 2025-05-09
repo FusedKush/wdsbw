@@ -578,11 +578,7 @@ export abstract class ProgramConfiguration <
      * 
      * @see `#programVars`
      */
-    #configVars: Readonly<
-        ProgramConfiguration.ConfigurationOptions<
-            ProgramConfiguration.ConfigurationOptionMapType
-        >
-    > | null;
+    #configVars: Readonly<ProgramConfiguration.ConfigurationOptionsType> | null;
     /**
      * Contains the current Program Variables associated with this object.
      * 
@@ -609,12 +605,7 @@ export abstract class ProgramConfiguration <
      * 
      * @see `#configVars`
      */
-    #programVars: Readonly<
-        ProgramConfiguration.ProgramVariables<
-            ProgramConfiguration.ConfigurationOptionMapType,
-            never
-        >
-    > | null;
+    #programVars: Readonly<ProgramConfiguration.ProgramVariablesType> | null;
 
     /**
      * A {@link JSONFileManager} responsible for writing to and
@@ -2865,6 +2856,7 @@ export namespace ProgramConfiguration {
     //     )
     // );
 
+    export type ConfigurationOptionsType = Record<string, RawConfigurationOptionValue>;
     type ConfigurationOptionsHelper <
         T extends ConfigurationOptionType,
         BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
@@ -2999,6 +2991,8 @@ export namespace ProgramConfiguration {
     //         >
     //         : {}
     // );
+    
+    export type ProgramVariablesType = Record<ObjectKey, any>;
     type SimpleProgramVariablesHelper <
         T extends ConfigurationOptionMapType, 
         BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
