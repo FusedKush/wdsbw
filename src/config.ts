@@ -489,8 +489,8 @@ import path from "node:path";
  * @see {@link ProgramConfigurationFactory}
  */
 export abstract class ProgramConfiguration <
-    PrefetchedT extends boolean = false,
-    DefsT extends ProgramConfiguration.MergableProgramConfigurationDefinitions = ProgramConfiguration.DefaultMergableProgramConfigurationDefinitions,
+    PrefetchedT extends boolean = boolean,
+    DefsT extends ProgramConfiguration.MergableProgramConfigurationDefinitions = ProgramConfiguration.MergableProgramConfigurationDefinitions,
     MergedDefsT extends ProgramConfiguration.ProgramConfigurationDefinitions<
         ProgramConfiguration.ConfigurationOptionMapType
     > = ProgramConfiguration.MergedProgramConfigurationDefinitions<DefsT>
