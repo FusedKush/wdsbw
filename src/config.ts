@@ -2522,7 +2522,24 @@ export namespace ProgramConfiguration {
 
 
     /* Program Configuration Definitions */
+    // Primary Interfaces
 
+    /**
+     * An interface representing a *Program Configuration Specification*
+     * containing all of the {@link ConfigurationOption Configuration Option Definitions}
+     * and {@link ComplexProgramVariable Complex Program Variables} used to define
+     * the available {@link ConfigurationOptions Configuration Options}
+     * and {@link ProgramVariables Program Variables}.
+     * 
+     * The non-templated variant of this type is {@link ProgramConfigurationDefinitionsType}.
+     * 
+     * @template OptionsT               The type of the {@link ProgramConfigurationDefinitions.configOptions configOptions} property.
+     * @template ComplexProgramVarsT    The type of the {@link ProgramConfigurationDefinitions.complexProgramVars complexProgramVars} property.
+     * 
+     * @see {@link ProgramConfigurationDefinitionsType}
+     * @see {@link MergableProgramConfigurationDefinitions}
+     * @see {@link MergedProgramConfigurationDefinitions}
+     */
     export type ProgramConfigurationDefinitions <
         OptionsT extends ConfigurationOptionMapType | undefined,
         ComplexProgramVarsT extends ComplexProgramVariableMapType | undefined = ComplexProgramVariableMap<
@@ -2534,38 +2551,88 @@ export namespace ProgramConfiguration {
             )
         > | undefined
     > = (
-    // > = ExpandObjectTypeRecursively<(
-    //     undefined extends OptionsT
-    //         ? {
-    //             configOptions?: OptionsT;
-    //             complexProgramVars?: ComplexProgramVarsT;
-    //         }
-    //         : {
-    //             configOptions: OptionsT;
-    //             complexProgramVars?: ComplexProgramVarsT;
-    //         }
-    // )>
         (
             undefined extends OptionsT
-                ? { configOptions?: OptionsT; }
-                : { configOptions: OptionsT; }
+                ? {
+                    
+                    /**
+                     * A {@link ConfigurationOptionMap} containing the 
+                     * {@link ConfigurationOption Configuration Option Definitions}.
+                     */
+                    configOptions?: OptionsT;
+                
+                }
+                : {
+                    
+                    /**
+                     * A {@link ConfigurationOptionMap} containing the 
+                     * {@link ConfigurationOption Configuration Option Definitions}.
+                     */
+                    configOptions: OptionsT;
+                
+                }
         )
-        // // ObjectUtils.MakeUndefinedPropertiesOptional<{
-            
-        // //     configOptions: OptionsT;
-            
-        // // }> & {
         & {
 
+            /**
+             * A {@link ComplexProgramVariableMapType} containing the 
+             * {@link ComplexProgramVariable Complex Program Variable Definitions}.
+             */
             complexProgramVars?: ComplexProgramVarsT;
 
         }
     );
+    /**
+     * An interface representing a *Program Configuration Specification*
+     * containing all of the {@link ConfigurationOption Configuration Option Definitions}
+     * and {@link ComplexProgramVariable Complex Program Variables} used to define
+     * the available {@link ConfigurationOptions Configuration Options}
+     * and {@link ProgramVariables Program Variables}.
+     * 
+     * This is the non-templated of {@link ProgramConfigurationDefinitions}.
+     * 
+     * @see {@link ProgramConfigurationDefinitions}
+     */
     export type ProgramConfigurationDefinitionsType = ProgramConfigurationDefinitions<
         ConfigurationOptionMapType | undefined,
         ComplexProgramVariableMapType | undefined
     >;
 
+
+    // Merged Definitions
+
+    /**
+     * An array type representing a list of *Mergable*
+     * {@link ProgramConfigurationDefinitions Program Configuration Definitions}.
+     * 
+     * This type is identical to a simple array of
+     * {@link ProgramConfigurationDefinitions Program Configuration Definitions}
+     * (`ProgramConfiguration.ProgramConfigurationDefinitionsType[]`) with the exception
+     * of the *first element*, which **must** contain the
+     * {@link ProgramConfigurationDefinitions.configOptions configOptions} property.
+     * 
+     * @see {@link DefaultMergableProgramConfigurationDefinitions}
+     */
+    export type MergableProgramConfigurationDefinitions = [
+        ProgramConfiguration.ProgramConfigurationDefinitions<ConfigurationOptionMapType>,
+        ...ProgramConfiguration.ProgramConfigurationDefinitionsType[]
+    ];
+
+    /**
+     * A helper type for the {@link MergedProgramConfigurationDefinitions} type,
+     * which is responsible for merging the specified `CustomConfigT` with
+     * the designated `BaseConfigT` to produce a single,
+     * merged {@link ProgramConfigurationDefinitions} object type.
+     * 
+     * @template BaseConfigT    The *Base* {@link ProgramConfigurationDefinitions} object type
+     *                          being merged with the `CustomConfigT`.
+     * 
+     * @template CustomConfigT  The *Custom* {@link ProgramConfigurationDefinitions} object type
+     *                          being merged *into* the `BaseConfigT`.
+     * 
+     * @see {@link MergedProgramConfigurationDefinitions}
+     * @see {@link MergedProgramConfigurationDefinitionsRecursionHelper}
+     */
     type MergedProgramConfigurationDefinitionsMergeHelper <
         BaseConfigT extends ProgramConfigurationDefinitionsType,
         CustomConfigT extends ProgramConfigurationDefinitionsType
@@ -2581,7 +2648,6 @@ export namespace ProgramConfiguration {
                     : {}
             )
         ),
-        // configOptions: ([O] extends [never] ? undefined : ConfigurationOptionMap<N, O>),
         complexProgramVars: (
             BaseConfigT['complexProgramVars'] extends ComplexProgramVariableMap<
                 infer BaseK,
@@ -2620,6 +2686,17 @@ export namespace ProgramConfiguration {
                 )
         )
     };
+    /**
+     * A helper type for the {@link MergedProgramConfigurationDefinitions} type,
+     * which is responsible for recursively processing and reducing the specified tuple
+     * of {@link ProgramConfigurationDefinitions} object types.
+     * 
+     * @template ConfigsT   A tuple of {@link ProgramConfigurationDefinitions} object types
+     *                      to be recursively processed and reduced.
+     * 
+     * @see {@link MergedProgramConfigurationDefinitions}
+     * @see {@link MergedProgramConfigurationDefinitionsMergeHelper}
+     */
     type MergedProgramConfigurationDefinitionsRecursionHelper <ConfigsT extends unknown[]> = (
         ConfigsT extends ProgramConfigurationDefinitionsType[]
             ? (
@@ -2646,13 +2723,19 @@ export namespace ProgramConfiguration {
             )
             : {}
     );
-    export type MergableProgramConfigurationDefinitions = [
-        ProgramConfiguration.ProgramConfigurationDefinitions<ProgramConfiguration.ConfigurationOptionMapType>,
-        ...ProgramConfiguration.ProgramConfigurationDefinitionsType[]
-    ];
-    export type DefaultMergableProgramConfigurationDefinitions = [{ configOptions: {} }];
+    /**
+     * *Merge* all of the specified
+     * {@link ProgramConfigurationDefinitions Program Configuration Definitions}
+     * into a single `ProgramConfigurationDefinitions` object type.
+     * 
+     * Definitions are merged from **left-to-right** with definitions
+     * appearing later in the tuple overwriting those that appear
+     * before them.
+     * 
+     * @template ConfigsT   A tuple of {@link MergableProgramConfigurationDefinitions Mergable Configuration Definitions}.
+     */
     export type MergedProgramConfigurationDefinitions <
-        ConfigsT extends [ProgramConfigurationDefinitions<ConfigurationOptionMapType>, ...ProgramConfigurationDefinitionsType[]]
+        ConfigsT extends MergableProgramConfigurationDefinitions
     > = MergedProgramConfigurationDefinitionsRecursionHelper<ConfigsT>;
 
     type SensitiveConfigurationOptionsHelper <
