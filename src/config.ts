@@ -2738,6 +2738,218 @@ export namespace ProgramConfiguration {
         ConfigsT extends MergableProgramConfigurationDefinitions
     > = MergedProgramConfigurationDefinitionsRecursionHelper<ConfigsT>;
 
+
+    /* Configuration Options & Program Variables */
+
+    /**
+     * A helper type for the {@link ConfigurationOptions} type
+     * responsible for recursively building the Configuration Options object.
+     * 
+     * @template OptionsT   The {@link ConfigurationOption Configuration Option Specifications}
+     *                      used to build the Configuration Options object.
+     * 
+     * @template BaseKeyT   The base {@link ObjectUtils.ComplexObjectKey Configuration Option Key} to
+     *                      use when building the Configuration Options object, if applicable.
+     * 
+     * @see {@link ConfigurationOptions}
+     */
+    type ConfigurationOptionsHelper <
+        OptionsT extends ConfigurationOptionType,
+        BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
+    > = (
+        OptionsT['properties'] extends ConfigurationOptionMapType
+            ? {
+                -readonly [K in keyof OptionsT['properties']]: ConfigurationOptionsHelper<
+                    OptionsT['properties'][K],
+                    ArrayUtils.TupleFromTypes<BaseKeyT, K>
+                >;
+            }
+            : (
+                ExtractConfigurationOptionType<OptionsT>
+                | (
+                    OptionsT['required'] extends true
+                        ? never
+                        : undefined
+                )
+            )
+    );
+    /**
+     * The Raw *Configuration Options* specified by the
+     * designated {@link ConfigurationOptionMap Configuration Option Specification Map}.
+     * 
+     * Not to be confused with {@link ConfigurationOption}, which contains
+     * the Configuration Option *Specification* used to assemble
+     * a `ConfigurationOptions` object.
+     * 
+     * In contrast to {@link ProgramVariables Program Variables},
+     * Configuration Options are *unprocessed* and are returned exactly
+     * as they are specified (after being converted to and from JSON, that is).
+     * 
+     * The non-templated variant of this type is {@link ConfigurationOptionsType}.
+     * 
+     * @template OptionsT   The {@link ConfigurationOptionMap Configuration Option Specification Map}
+     *                      used to assemble the Configuration Options object.
+     * 
+     * @see {@link ConfigurationOptionsType}
+     * @see {@link ProgramVariables}
+     * @see {@link ConfigurationOption}
+     */
+    export type ConfigurationOptions <OptionsT extends ConfigurationOptionMapType> = (
+        IsAnyType<OptionsT> extends false
+            ? (
+                [OptionsT] extends [never]
+                    ? never
+                    : (
+                        {
+                            -readonly [K in keyof OptionsT]: ConfigurationOptionsHelper<OptionsT[K], [K]>;
+                        } extends infer O
+                            ? (
+                                O extends Record<ObjectKey, RawConfigurationOptionValue | undefined>
+                                    ? O
+                                    : ObjectUtils.MakeOptionalPropertiesOptional<O extends object ? O : never>
+                            )
+                            : never
+                    )
+            )
+            : any
+    );
+    /**
+     * The Raw *Configuration Options* specified by the
+     * designated {@link ConfigurationOptionMap Configuration Option Specification Map}.
+     * 
+     * This is the non-templated variant of {@link ConfigurationOptionsType}.
+     * 
+     * @see {@link ConfigurationOptions}
+     * @see {@link ProgramVariablesType}
+     * @see {@link ConfigurationOptionType}
+     */
+    export type ConfigurationOptionsType = Record<string, RawConfigurationOptionValue>;
+    
+    /**
+     * A helper type for the {@link ProgramVariables} type
+     * responsible for recursively assembling part of the
+     * final Program Variables object containing all of
+     * the *Simple Program Variables* specified by the
+     * designated {@link ConfigurationOptionMap Configuration Option Specification Map}.
+     * 
+     * @template OptionsT   The {@link ConfigurationOption Configuration Option Specifications}
+     *                      used to build the Configuration Options object.
+     * 
+     * @template BaseKeyT   The base {@link ObjectUtils.ComplexObjectKey Configuration Option Key} to
+     *                      use when building the Configuration Options object, if applicable.
+     * 
+     * @see {@link ProgramVariables}
+     */
+    type SimpleProgramVariablesHelper <
+        OptionsT extends ConfigurationOptionMapType, 
+        BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
+    > = UnionToIntersection<{
+        [K in keyof OptionsT]: (
+            OptionsT[K]['programVar'] extends false
+                ? {}
+                : ObjectUtils.RecordNestedObject<
+                    (
+                        OptionsT[K]['programVar'] extends ObjectUtils.ComplexObjectKeyType
+                            ? OptionsT[K]['programVar']
+                            : ArrayUtils.TupleFromTypes<
+                                BaseKeyT,
+                                (
+                                    OptionsT[K]['programVar'] extends ObjectUtils.SimpleObjectKeyType
+                                        ? OptionsT[K]['programVar']
+                                        : OptionsT[K]['key']
+                                )
+                            >
+                    ),
+                    ExtractSimpleProgramVariableType<OptionsT[K]>
+                >
+        ) & (
+            OptionsT[K]['properties'] extends ConfigurationOptionMapType
+                ? SimpleProgramVariablesHelper<
+                    OptionsT[K]['properties'],
+                    (
+                        OptionsT[K]['programVar'] extends false
+                            ? BaseKeyT
+                            : ArrayUtils.TupleFromTypes<BaseKeyT, K>
+                    )
+                >
+                : {}
+        );
+    }[keyof OptionsT]>;
+    /**
+     * The Processed *Program Variables* specified by the
+     * designated {@link ConfigurationOptionMap Configuration Option}
+     * and {@link ComplexProgramVariableMap Complex Program Variable Specification Maps}.
+     * 
+     * Not to be confused with {@link ComplexProgramVariable}, which contains
+     * the *Specification* for a Complex Program Variable that is used to assemble
+     * the `ProgramVariables` object.
+     * 
+     * In contrast to {@link ConfigurationOptions Configuration Options}, Program Variables
+     * are *processed* and may take a different shape and contain different variables and
+     * values than those specified by the user.
+     * 
+     * The non-templated variant of this type is {@link ProgramVariablesType}.
+     * 
+     * @template OptionsT               The {@link ConfigurationOptionMap Configuration Option Specification Map}
+     *                                  used to assemble the Program Variables object.
+     * 
+     * @template ComplexProgramVarsT    An optional {@link ComplexProgramVariableMap Complex Program Variable Specification Map}
+     *                                  used to assemble the Program Variables object.
+     * 
+     * @see {@link ProgramVariablesType}
+     * @see {@link ConfigurationOptions}
+     * @see {@link ComplexProgramVariable}
+     */
+    export type ProgramVariables <
+        OptionsT extends ConfigurationOptionMapType,
+        ComplexProgramVarsT extends ComplexProgramVariable<OptionsT> = never
+    > = (
+        (
+            (
+                IsAnyType<OptionsT> extends false
+                    ? (
+                        [OptionsT] extends [never]
+                            ? {}
+                            : SimpleProgramVariablesHelper<OptionsT>
+                    )
+                    : any
+            ) extends infer O
+                ? (
+                    O extends Record<ObjectKey, never>
+                        ? Record<ObjectKey, any>
+                        : ObjectUtils.MakeOptionalPropertiesOptional<O extends object ? O : never>
+                )
+                : {}
+        ) &
+        (
+            IsAnyType<ComplexProgramVarsT> extends false
+                ? (
+                    [ComplexProgramVarsT] extends [never]
+                        ? {}
+                        : UnionToIntersection<{
+                            [K in ComplexProgramVarsT as number]: ObjectUtils.RecordNestedObject<
+                                K['programVar'],
+                                ReturnType<K['conversionFn']>
+                            >
+                        }[number]>
+                )
+                : any
+        )
+    );
+    /**
+     * The Processed *Program Variables* specified by the
+     * designated {@link ConfigurationOptionMap Configuration Option}
+     * and {@link ComplexProgramVariableMap Complex Program Variable Specification Maps}.
+     * 
+     * This is the non-templated variant of {@link ProgramVariables}.
+     * 
+     * @see {@link ProgramVariables}
+     * @see {@link ConfigurationOptionsType}
+     * @see {@link ComplexProgramVariableType}
+     */
+    export type ProgramVariablesType = Record<ObjectKey, any>;
+
+
     type SensitiveConfigurationOptionsHelper <
         T extends ConfigurationOptionType,
         BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
@@ -2937,345 +3149,6 @@ export namespace ProgramConfiguration {
     //             ? O[keyof O]
     //             : never
     //     )
-    // );
-
-    export type ConfigurationOptionsType = Record<string, RawConfigurationOptionValue>;
-    type ConfigurationOptionsHelper <
-        T extends ConfigurationOptionType,
-        BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
-    > = (
-        T['properties'] extends ConfigurationOptionMapType
-            ? {
-                -readonly [K in keyof T['properties']]: ConfigurationOptionsHelper<
-                    T['properties'][K],
-                    ArrayUtils.TupleFromTypes<BaseKeyT, K>
-                >;
-            }
-            : (
-                ExtractConfigurationOptionType<T>
-                | (
-                    T['required'] extends true
-                        ? never
-                        : undefined
-                )
-            )
-    );
-    export type ConfigurationOptions <OptionsT extends ConfigurationOptionMapType> = (
-        IsAnyType<OptionsT> extends false
-            ? (
-                [OptionsT] extends [never]
-                    ? never
-                    : (
-                        {
-                            -readonly [K in keyof OptionsT]: ConfigurationOptionsHelper<OptionsT[K], [K]>;
-                        } extends infer O
-                            ? (
-                                O extends Record<ObjectKey, RawConfigurationOptionValue | undefined>
-                                    ? O
-                                    : ObjectUtils.MakeOptionalPropertiesOptional<O extends object ? O : never>
-                            )
-                            : never
-                    )
-            )
-            : any
-    );
-    type CO = ConfigurationOptions<BaseProgramConfiguration.BaseConfigurationOptions>;
-    // > = (
-    //     {
-    //         [K in keyof OptionsT]: (
-    //             OptionsT[K] extends NewConfigurationOption<K, infer B, infer S, infer T>
-    //                 ? (
-    //                     object extends T
-    //                         ? (
-    //                             [NonNullable<OptionsT[K]['properties']>] extends [never]
-    //                                 ? T
-    //                                 : ConfigurationOptions< NonNullable<OptionsT[K]['properties']> >
-    //                         )
-    //                         : T
-    //                 )
-    //                 : never
-    //         ) | (
-    //             OptionsT[K]['required'] extends true
-    //                 ? never
-    //                 : undefined
-    //         )
-    //     } extends infer O
-    //         ? (
-    //             RecursiveT extends true
-    //                 ? O
-    //                 : ExpandObjectTypeRecursively<ObjectUtils.MakeUndefinedPropertiesOptional<
-    //                     O extends object ? O : never
-    //                 >>
-    //         )
-    //         : never
-    // )
-            // UnionToIntersection<ArrayUtils.ArrayifyType<OptionsT> extends infer T
-            //     ? {
-            //         [K in T as number]: K extends [ConfigurationOption]
-            //             ? ObjectUtils.RecordNestedObject<
-            //                 K[0]['name'],
-            //                 (
-            //                     TypeofType<K[0]['type']>
-            //                     | (
-            //                         K[0]['required'] extends true
-            //                             ? never
-            //                             : undefined
-            //                     )
-            //                 )
-            //             >
-            //             : never
-            //     }[number]
-            //     : never>
-    
-    // type SimpleKeyProgramVariablesHelper <T extends ConfigurationOptionType> = (
-    //     object extends ExtractConfigurationOptionType<T>
-    //         ? (
-    //             T['properties'] extends ConfigurationOptionMapType
-    //                 ? {
-    //                     [
-    //                         K in keyof T['properties'] as DynamicProgramVariableKey<T['properties'][K]> extends ObjectUtils.SimpleObjectKeyType
-    //                             ? DynamicProgramVariableKey<T['properties'][K]>
-    //                             : never
-    //                     ]: SimpleKeyProgramVariablesHelper<T['properties'][K]>;
-    //                 }
-    //                 : never
-    //         )
-    //         : (
-    //             (
-    //                 'conversionFn' extends keyof T
-    //                     ? ReturnType<
-    //                         T['conversionFn'] extends ProgramVariableConversionFunction
-    //                             ? T['conversionFn']
-    //                             : never
-    //                     >
-    //                     : ExtractConfigurationOptionType<T>
-    //             ) | (
-    //                 T['required'] extends true
-    //                     ? never
-    //                     : (
-    //                         'defaultProgramVarValue' extends keyof T
-    //                             ? T['defaultProgramVarValue']
-    //                             : null
-    //                     )
-    //             )
-    //         )
-    // );
-    // type ComplexKeyProgramVariablesHelper <T extends ConfigurationOptionType> = (
-    //     T['properties'] extends ConfigurationOptionMapType
-    //         ? {
-    //             -readonly [K in keyof T['properties']]: ComplexKeyProgramVariablesHelper<T['properties'][K]>;
-    //         }[keyof T['properties']]
-    //         : {}
-    // ) & (
-    //     T['programVar'] extends ObjectUtils.ComplexObjectKeyType
-    //         ? ObjectUtils.RecordNestedObject<
-    //             T['programVar'],
-    //             SimpleProgramVariableType<T>
-    //         >
-    //         : {}
-    // );
-    
-    export type ProgramVariablesType = Record<ObjectKey, any>;
-    type SimpleProgramVariablesHelper <
-        T extends ConfigurationOptionMapType, 
-        BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
-    > = UnionToIntersection<{
-        [K in keyof T]: (
-            T[K]['programVar'] extends false
-                ? {}
-                : ObjectUtils.RecordNestedObject<
-                    (
-                        T[K]['programVar'] extends ObjectUtils.ComplexObjectKeyType
-                            ? T[K]['programVar']
-                            : ArrayUtils.TupleFromTypes<
-                                BaseKeyT,
-                                (
-                                    T[K]['programVar'] extends ObjectUtils.SimpleObjectKeyType
-                                        ? T[K]['programVar']
-                                        : T[K]['key']
-                                )
-                            >
-                    ),
-                    ExtractSimpleProgramVariableType<T[K]>
-                >
-        ) & (
-            T[K]['properties'] extends ConfigurationOptionMapType
-                ? SimpleProgramVariablesHelper<
-                    T[K]['properties'],
-                    (
-                        T[K]['programVar'] extends false
-                            ? BaseKeyT
-                            : ArrayUtils.TupleFromTypes<BaseKeyT, K>
-                    )
-                >
-                : {}
-        );
-    }[keyof T]>;
-    // type ComplexKeyProgramVariablesHelper <OptionsT extends NewConfigurationOptionMapType> = (
-    //     {
-    //         [K in keyof OptionsT as OptionsT[K]['programVar'] extends ObjectUtils.ComplexObjectKeyType ? number : never]: ObjectUtils.RecordNestedObject<
-    //             OptionsT[K]['programVar'] extends ObjectUtils.ComplexObjectKeyType
-    //                 ? OptionsT[K]['programVar']
-    //                 : never,
-    //             ProgramVariableType<OptionsT[K]>
-    //         > | (
-    //             OptionsT[K] extends NewConfigurationOption<K, infer B, infer S, infer T>
-    //                 ? (
-    //                     object extends T
-    //                         ? (
-    //                             [NonNullable<OptionsT[K]['properties']>] extends [null]
-    //                                 ? {}
-    //                                 : ComplexKeyProgramVariablesHelper<NonNullable<OptionsT[K]['properties']>>
-    //                         )
-    //                         : {}
-    //                 )
-    //                 : {}
-    //         )
-    //     } extends infer O ? O[keyof O] : never
-    // );
-    export type ProgramVariables <
-        OptionsT extends ConfigurationOptionMapType,
-        ComplexProgramVarsT extends ComplexProgramVariable<OptionsT> = never
-    > = (
-        (
-            (
-                IsAnyType<OptionsT> extends false
-                    ? (
-                        [OptionsT] extends [never]
-                            ? {}
-                            : SimpleProgramVariablesHelper<OptionsT>
-                            // : (
-                            //     /* {
-                            //         -readonly [
-                            //             K in keyof OptionsT as DynamicProgramVariableKey<OptionsT[K]> extends ObjectUtils.SimpleObjectKeyType
-                            //                 ? DynamicProgramVariableKey<OptionsT[K]>
-                            //                 : never
-                            //         ]: SimpleKeyProgramVariablesHelper<OptionsT[K]>;
-                            //     } & */ (
-                            //         {
-                            //             -readonly [
-                            //                 K in keyof OptionsT as OptionsT[K]['programVar'] extends ObjectUtils.ComplexObjectKeyType
-                            //                     ? number
-                            //                     : never
-                            //             ]: ComplexKeyProgramVariablesHelper<OptionsT[K]>;
-                            //         }
-                            //     )
-                            // )
-                    )
-                    : any
-            ) extends infer O
-                ? (
-                    O extends Record<ObjectKey, never>
-                        ? Record<ObjectKey, any>
-                        : ObjectUtils.MakeOptionalPropertiesOptional<O extends object ? O : never>
-                )
-                : {}
-        ) &
-        (
-            IsAnyType<ComplexProgramVarsT> extends false
-                ? (
-                    [ComplexProgramVarsT] extends [never]
-                        ? {}
-                        : UnionToIntersection<{
-                            [K in ComplexProgramVarsT as number]: ObjectUtils.RecordNestedObject<
-                                K['programVar'],
-                                ReturnType<K['conversionFn']>
-                            >
-                        }[number]>
-                )
-                : any
-        )
-    );
-    type PV = ProgramVariables<
-        BaseProgramConfiguration.BaseConfigurationOptions,
-        never
-    >;
-    // > = (
-    //     (
-    //         {
-    //             -readonly [
-    //                 K in keyof OptionsT as (
-    //                     ArrayUtils.SoleElement<ProgramVariableKey<OptionsT[K]>> extends ObjectUtils.SimpleObjectKeyType
-    //                         ? ArrayUtils.SoleElement<ProgramVariableKey<OptionsT[K]>>
-    //                         : never
-    //                 )]: (
-    //                     OptionsT[K] extends NewConfigurationOption<K, infer B, infer S, infer T>
-    //                         ? (
-    //                             T extends object
-    //                                 ? (
-    //                                     [NonNullable<OptionsT[K]['properties']>] extends [never]
-    //                                         ? (
-    //                                             OptionsT[K]['conversionFn'] extends ProgramVariableConversionFunction
-    //                                                 ? ReturnType<OptionsT[K]['conversionFn']>
-    //                                                 : T
-    //                                         )  
-    //                                         : (
-    //                                             NonNullable<OptionsT[K]['properties']> extends NewConfigurationOptionMapType
-    //                                                 ? ProgramVariables<NonNullable<OptionsT[K]['properties']>, never, true>
-    //                                                 : never
-    //                                         )
-    //                                 )
-    //                                 : (
-    //                                     OptionsT[K]['conversionFn'] extends ProgramVariableConversionFunction
-    //                                         ? ReturnType<OptionsT[K]['conversionFn']>
-    //                                         : T
-    //                                 )
-    //                         ) | (
-    //                             OptionsT[K]['required'] extends true
-    //                                 ? never
-    //                                 : (
-    //                                     object extends T
-    //                                         ? never
-    //                                         : (
-    //                                             undefined extends OptionsT[K]['defaultProgramVarValue']
-    //                                                 ? null
-    //                                                 : OptionsT[K]['defaultProgramVarValue']
-    //                                         )
-    //                                 )
-    //                         )
-    //                         : never
-    //             )
-    //         //     // [ K in OptionsT as K['programVar'] extends false ? never : number ]: ObjectUtils.RecordNestedObject<
-    //         //     //     (
-    //         //     //         K['programVar'] extends ObjectUtils.DynamicObjectKeyType
-    //         //     //             ? K['programVar']
-    //         //     //             : K['name']
-    //         //     //     ),
-    //         //     //     (
-    //         //     //         (
-    //         //     //             K['conversionFn'] extends OptionConversionFunction
-    //         //     //                 ? ReturnType<K['conversionFn']>
-    //         //     //                 : TypeofType<K['type']>
-    //         //     //         ) | (
-    //         //     //             K['required'] extends true
-    //         //     //                 ? never
-    //         //     //                 : (
-    //         //     //                     undefined extends K['defaultValue']
-    //         //     //                         ? null
-    //         //     //                         : K['defaultValue']
-    //         //     //                 )
-    //         //     //         )
-    //         //     //     )
-    //         //     // >
-    //         }
-    //         & UnionToIntersection<
-    //             ComplexKeyProgramVariablesHelper<OptionsT> |
-    //             (
-    //                 {
-    //                     [K in ComplexProgramVarsT as number]: ObjectUtils.RecordNestedObject<
-    //                         K['programVar'],
-    //                         ReturnType<K['conversionFn']>
-    //                     >
-    //                 } extends infer O ? O[keyof O] : never
-    //             )
-    //         >
-    //     ) extends infer T
-    //         ? (
-    //             RecursiveT extends false
-    //                 ? ExpandObjectTypeRecursively<T>
-    //                 : T
-    //         )
-    //         : never
     // );
 
 }
