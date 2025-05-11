@@ -2950,107 +2950,125 @@ export namespace ProgramConfiguration {
     export type ProgramVariablesType = Record<ObjectKey, any>;
 
 
+    /* Sensitive Configuration Options & Program Variables */
+
+    /**
+     * A helper type for the {@link SensitiveConfigurationOptions} type
+     * responsible for recursively building a union of the
+     * {@link ConfigurationOption.key keys} of the
+     * {@link ConfigurationOption.sensitive Sensitive Configuration Options}
+     * within the designated {@link ConfigurationOptionMap Configuration Option Specification Map}.
+     * 
+     * @template OptionsT   The {@link ConfigurationOption Configuration Option Specifications}
+     *                      being evaluated.
+     * 
+     * @template BaseKeyT   The base {@link ObjectUtils.ComplexObjectKey Configuration Option Key} to
+     *                      use when building the full key, if applicable.
+     * 
+     * @see {@link SensitiveConfigurationOptions}
+     */
     type SensitiveConfigurationOptionsHelper <
-        T extends ConfigurationOptionType,
+        OptionsT extends ConfigurationOptionType,
         BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
     > = (
-        object extends ExtractConfigurationOptionType<T>
+        OptionsT['properties'] extends ConfigurationOptionMapType
             ? (
-                T['properties'] extends ConfigurationOptionMapType
-                    ? {
-                        [K in keyof T['properties']]: SensitiveConfigurationOptionsHelper<
-                            T['properties'][K],
-                            ArrayUtils.TupleFromTypes<BaseKeyT, K>
-                        >
-                    } extends infer O ? O[keyof O] : never
+                {
+                    [K in keyof OptionsT['properties']]: SensitiveConfigurationOptionsHelper<
+                        OptionsT['properties'][K],
+                        ArrayUtils.TupleFromTypes<BaseKeyT, K>
+                    >
+                } extends infer O
+                    ? O[keyof O]
                     : never
             )
             : (
-                T['sensitive'] extends true
+                OptionsT['sensitive'] extends true
                     ? BaseKeyT
                     : never
             )
     );
-    export type SensitiveConfigurationOptions <T extends ConfigurationOptionMapType> = (
+    /**
+     * A union containing the {@link ConfigurationOption.key keys} of the
+     * {@link ConfigurationOption.sensitive Sensitive Configuration Options}
+     * within the designated {@link ConfigurationOptionMap Configuration Option Specification Map}.
+     * 
+     * The variant of this type for {@link ProgramVariables Program Variables} is {@link SensitiveProgramVariables}.
+     * 
+     * For the *values* of the Configuration Options themselves, see {@link ConfigurationOptions}.
+     * 
+     * @template OptionsT   The {@link ConfigurationOptionMap Configuration Option Specification Map}
+     *                      being evaluated.
+     * 
+     * @see {@link ConfigurationOptions}
+     * @see {@link SensitiveProgramVariables}
+     */
+    export type SensitiveConfigurationOptions <OptionsT extends ConfigurationOptionMapType> = (
         {
-            [K in keyof T]: SensitiveConfigurationOptionsHelper<T[K], [K]>;
+            [K in keyof OptionsT]: SensitiveConfigurationOptionsHelper<OptionsT[K], [K]>;
         } extends infer O
             ? O[keyof O]
             : never
     );
-    // export type SensitiveConfigurationOptions <
-    //     OptionsT extends NewConfigurationOptionMapType,
-    //     BaseKeyT extends ObjectUtils.ComplexObjectKeyType = never
-    // > = (
-    //     {
-    //         [
-    //             K in keyof OptionsT as OptionsT[K]['sensitive'] extends true
-    //                 ? K
-    //                 : (
-    //                     OptionsT[K] extends NewConfigurationOption<K, BaseKeyT, infer T, infer U>
-    //                         ? (
-    //                             object extends U
-    //                                 ? K
-    //                                 : never
-    //                         )
-    //                         : never
-    //                 )
-    //         ]: (
-    //             OptionsT[K] extends NewConfigurationOption<K, BaseKeyT, infer T, infer U>
-    //                 ? (
-    //                     object extends U
-    //                         ? (
-    //                             [NonNullable<OptionsT[K]['properties']>] extends [never]
-    //                                 ? ArrayUtils.TupleFromTypes<BaseKeyT, K>
-    //                                 : SensitiveConfigurationOptions<
-    //                                     NonNullable<OptionsT[K]['properties']>,
-    //                                     ArrayUtils.TupleFromTypes<BaseKeyT, K>
-    //                                 >
-    //                         )
-    //                         : ArrayUtils.TupleFromTypes<BaseKeyT, K>
-    //                 )
-    //                 : never
-    //         )
-    //     } extends infer O ? O[keyof O] : never
-    //     // {
-    //     //     [O in OptionsT as O['sensitive'] extends true ? number : never]: O['name'];
-    //     // } extends infer O
-    //     //     ? O[keyof O]
-    //     //     : never
-    // );
-    // type Test = SensitiveProperties.RedactedObject<
-    //     ProgramConfiguration.ConfigurationOptions<BaseProgramConfiguration.NewBaseConfigurationOptions>,
-    //     ProgramConfiguration.SensitiveConfigurationOptions<
-    //         BaseProgramConfiguration.NewBaseConfigurationOptions
-    //     >[]
-    // >;
+
+    /**
+     * A helper type for the {@link SensitiveProgramVariables} type
+     * responsible for recursively building a union of the
+     * {@link ConfigurationOption.programVar keys} of the
+     * {@link ConfigurationOption.sensitive Sensitive Simple Program Variables}
+     * within the designated {@link ConfigurationOptionMap Configuration Option Specification Map}.
+     * 
+     * @template OptionsT   The {@link ConfigurationOption Configuration Option Specifications}
+     *                      being evaluated.
+     * 
+     * @template BaseKeyT   The base {@link ObjectUtils.ComplexObjectKey Configuration Option Key} to
+     *                      use when building the full key, if applicable.
+     * 
+     * @see {@link SensitiveProgramVariables}
+     */
     type SimpleSensitiveProgramVariablesHelper <
-        T extends ConfigurationOptionType,
+        OptionsT extends ConfigurationOptionType,
         BaseKeyT extends unknown[] = never
     > = (
-        object extends ExtractConfigurationOptionType<T>
+        OptionsT['properties'] extends ConfigurationOptionMapType
             ? (
-                T['properties'] extends ConfigurationOptionMapType
-                    ? {
-                        [K in keyof T['properties']]: SimpleSensitiveProgramVariablesHelper<
-                            T['properties'][K],
-                            (
-                                T['properties'][K]['programVar'] extends ObjectUtils.ComplexObjectKeyType
-                                    ? ExtractProgramVariableKey< T['properties'][K] >
-                                    : ArrayUtils.TupleFromTypes< BaseKeyT, ExtractProgramVariableKey<T['properties'][K]> >
-                            )
-                        >;
-                    } extends infer O
-                        ? O[keyof O]
-                        : never
+                {
+                    [K in keyof OptionsT['properties']]: SimpleSensitiveProgramVariablesHelper<
+                        OptionsT['properties'][K],
+                        (
+                            OptionsT['properties'][K]['programVar'] extends ObjectUtils.ComplexObjectKeyType
+                                ? ExtractProgramVariableKey< OptionsT['properties'][K] >
+                                : ArrayUtils.TupleFromTypes< BaseKeyT, ExtractProgramVariableKey<OptionsT['properties'][K]> >
+                        )
+                    >;
+                } extends infer O
+                    ? O[keyof O]
                     : never
             )
             : (
-                T['sensitive'] extends true
+                OptionsT['sensitive'] extends true
                     ? BaseKeyT
                     : never
             )
     );
+    /**
+     * A union containing the keys of the *Sensitive Program Variables*
+     * within the designated {@link ConfigurationOptionMap Configuration Option}
+     * and {@link ComplexProgramVariableMap Complex Program Variable Specification Map}.
+     * 
+     * The variant of this type for {@link ConfigurationOptions Configuration Options} is {@link SensitiveConfigurationOptions}.
+     * 
+     * For the *values* of the Program Variables themselves, see {@link ProgramVariables}.
+     * 
+     * @template OptionsT               The {@link ConfigurationOptionMap Configuration Option Specification Map}
+     *                                  being evaluated.
+     * 
+     * @template ComplexProgramVarsT    An optional {@link ComplexProgramVariableMap Complex Program Variable Specification Map}
+     *                                  to be evaluated.
+     * 
+     * @see {@link ProgramVariables}
+     * @see {@link SensitiveConfigurationOptions}
+     */
     export type SensitiveProgramVariables <
         OptionsT extends ConfigurationOptionMapType,
         ComplexVarsT extends ComplexProgramVariableType = never
@@ -3073,83 +3091,6 @@ export namespace ProgramConfiguration {
                 : never
         )
     );
-
-    // > = (
-    //     // (
-    //     //     {
-    //     //         [ 
-    //     //             O in OptionsT as O['sensitive'] extends true
-    //     //                 ? (
-    //     //                     O['programVar'] extends false
-    //     //                         ? never
-    //     //                         : number
-    //     //                 )
-    //     //                 : never 
-    //     //         ]: (
-    //     //             O['programVar'] extends ObjectUtils.DynamicObjectKeyType
-    //     //                 ? O['programVar']
-    //     //                 : O['name']
-    //     //         );
-    //     //     } extends infer O
-    //     //         ? O[keyof O]
-    //     //         : never
-    //     // ) | (
-    //     (
-    //         {
-    //             [
-    //                 K in keyof OptionsT as (
-    //                     OptionsT[K] extends NewConfigurationOption<K, BaseKeyT, infer T, infer U>
-    //                         ? (
-    //                             object extends U
-    //                                 ? K
-    //                                 : (
-    //                                     OptionsT[K]['sensitive'] extends true
-    //                                         ? (
-    //                                             OptionsT[K]['programVar'] extends false
-    //                                                 ? never
-    //                                                 : K
-    //                                         )
-    //                                         : never
-    //                                 )
-    //                         )
-    //                         : never
-    //                 )
-    //             ]: (
-    //                 OptionsT[K] extends NewConfigurationOption<K, BaseKeyT, infer T, infer U>
-    //                     ? (
-    //                         ArrayUtils.TupleFromTypes<BaseKeyT, ProgramVariableKey<OptionsT[K]>> extends infer FullKeyT
-    //                             ? (
-    //                                 object extends U
-    //                                     ? (
-    //                                         [NonNullable<OptionsT[K]['properties']>] extends [never]
-    //                                             ? FullKeyT
-    //                                             : SensitiveProgramVariables<
-    //                                                 NonNullable<OptionsT[K]['properties']>,
-    //                                                 never,
-    //                                                 (FullKeyT extends ObjectUtils.ComplexObjectKeyType ? FullKeyT : never)
-    //                                             >
-    //                                     )
-    //                                     : FullKeyT
-    //                             )
-    //                             : never
-    //                     )
-    //                     : never
-    //             )
-    //         } extends infer O
-    //             ? O[keyof O]
-    //             : never
-    //     ) | (
-    //         {
-    //             [
-    //                 V in ComplexVarsT as V['sensitive'] extends true
-    //                     ? number
-    //                     : never
-    //             ]: V['programVar']
-    //         } extends infer O
-    //             ? O[keyof O]
-    //             : never
-    //     )
-    // );
 
 }
 
