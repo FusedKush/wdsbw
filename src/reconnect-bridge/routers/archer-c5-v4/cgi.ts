@@ -2409,14 +2409,14 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal): Reconnectio
             return settlePromise(true);
         }
         catch (error) {
-            if (error instanceof UnrecoverableError) {
+            if (error instanceof UnrecoverableError || error instanceof ReconnectionMethod.MainRouterError) {
                 return settlePromise(error);
             }
-            else if ( !AbortError.isAbortError(error) ) {
-                console.error("Failed to Re-Establish the WDS Bridge:", error);
+            else if (AbortError.isAbortError(error)) {
+                return settlePromise('aborted');
             }
             else {
-                return settlePromise('aborted');
+                console.error("Failed to Re-Establish the WDS Bridge:", error);
             }
         }
 

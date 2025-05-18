@@ -634,17 +634,17 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
             await screenshot(page, 'success');
         }
         catch (error) {
-            if (error instanceof UnrecoverableError) {
+            if (error instanceof UnrecoverableError || error instanceof ReconnectionMethod.MainRouterError) {
                 return reject(error);
             }
-            else if ( !AbortError.isAbortError(error) ) {
-                console.error("Failed to Reconnect the WDS Bridge:", error);
-    
-                if (typeof page! != 'undefined')
-                    await screenshot(page, 'reconnect-error');
+            else if (AbortError.isAbortError(error)) {
+                return resolve('aborted');
             }
             else {
-                return resolve('aborted');
+                console.error("Failed to Reconnect the WDS Bridge:", error);
+    
+                if (typeof page != 'undefined')
+                    await screenshot(page, 'reconnect-error');
             }
         }
     
