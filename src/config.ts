@@ -886,7 +886,7 @@ export abstract class ProgramConfiguration <
 
         if (this.#configVars) {
             if (redacted)
-                return SensitiveProperties.redact(this.#configVars, this.sensitiveConfigVars) as unknown as ReturnT;
+                return SensitiveProperties.redact(this.#configVars, this.sensitiveConfigVars) as ReturnT;
             else if (clone)
                 return deepClone(this.#configVars) as unknown as ReturnT;
         }
