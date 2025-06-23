@@ -922,16 +922,9 @@ const unhandledExceptionHandler = ( error: Error, origin: NodeJS.UncaughtExcepti
  * 
  * @see {@link cleanup `cleanup()`}
  */
-function cleanupAtExit ( printMainIntroMessages: boolean = true ): void {
+function cleanupAtExit (): void {
 
     shuttingDown = true;
-
-    if (printMainIntroMessages) {
-        console.log();
-        console.log(
-            colorizeOutput(`Shutting Down the ${PROGRAM_TITLE}...`, ForegroundColor.YELLOW)
-        );
-    }
 
     if ( existsSync(`./${RUNFILE_NAME}`) ) {
         if ( readFileSync(`./${RUNFILE_NAME}`).toString() == process.pid.toString() ) {
@@ -999,15 +992,15 @@ async function cleanup ( synchronous: boolean = false ): Promise<void> {
             if (verifyingBridgeStatus) {
                 console.log("Currently Checking or Attempting to Repair the WDS Bridge. Aborting!");
                 console.log(colorizeOutput(
-                    "Pending Operations have "
-                        + colorizeOutput(
-                            `${formatNum(MAX_ABORT_SIGNAL_PROPAGATION_TIME)}ms`,
-                            null,
-                            BrightForegroundColor.BLACK
-                        )
-                        + "to gracefully shutdown before the program forcefully terminates.",
+                    `Pending Operations have ${formatNum(MAX_ABORT_SIGNAL_PROPAGATION_TIME)}ms to gracefully shutdown.`
+                        + " Press CTRL + C to immediately force shutdown the program.",
+                    new Map<string | RegExp, ConsoleUtils.Color>([
+                        [/.+/s, BrightForegroundColor.BLACK],
+                        [/[\d,]+ms/, ForegroundColor.CYAN],
+                        ["CTRL + C", ForegroundColor.YELLOW]
+                    ]),
                     BrightForegroundColor.BLACK
-                ));
+                ))
                 abortController.abort();
                 await new Promise<void>((resolve) => {
         
