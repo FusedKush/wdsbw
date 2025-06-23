@@ -112,7 +112,7 @@ export const scanForWifiNetwork = <ScanFnT extends WifiNetworkScanFunction> (
 
     const scan = async () => {
 
-        result = await scanFn(++attempts);
+        result = await scanFn(++attempts).catch((error) => null);
 
         if (result !== null && result !== undefined) {
             verboseLog("[*] Successfully Retrieved the Current Main Router Wi-Fi Network Properties!");

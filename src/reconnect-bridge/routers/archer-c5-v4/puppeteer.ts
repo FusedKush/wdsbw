@@ -64,6 +64,7 @@ const ELEMENT_SELECTORS = {
     wdsScanButton: '#survey_5g',
     wdsScanResultsTable: '#tableWlStat',
     wdsScanResultTableRows: '#tableWlStat tr:not(.head)',
+    wdsScanResultBackButton: '#back',
     wdsSaveSettingsButton: '#wdsSave_5g',
     loadingContainer: '#g-loading-container',
     loadingMask: '#mask',
@@ -112,12 +113,18 @@ var loggedIn: boolean = false;
  * @throws          Rejects if either {@link Page.prototype.waitForSelector `waitForSelector()`}
  *                  or {@link Page.prototype.click `click()`} throw.
  */
-async function waitAndClick ( page: Page, selector: string ): Promise<void> {
+const waitAndClick = ( page: Page, selector: string ): Promise<void> => (
+    page.waitForSelector(selector, { visible: true, timeout: 10000 })
+        .then((selector) => {
 
-    await page.waitForSelector(selector, { visible: true });
-    await page.click(selector);
+            if (!selector)
+                throw new Error(`Failed to locate an element on the page matching the selector '${selector}'.`);
 
-}
+            return selector.click();
+
+        })
+
+);
 /**
  * {@link Page.prototype.waitForSelector Wait} for a *Clickable Element* matching the specified `selector`
  * to appear in the designated `page`, {@link Page.prototype.click click} it, and
@@ -455,7 +462,7 @@ async function testLogin <
             signal,
             async () => {
 
-                [browser, page] = await createInstance();
+                [browser, page] = await createInstance().catch((error) => { throw error });
                 const result = await loginToRouter(page, signal);
             
                 if (logout)
@@ -532,7 +539,7 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
 
         try {
             const programVars = getProgramVars();
-            [browser, page] = await createInstance();
+            [browser, page] = await createInstance().catch((error) => { throw error; });
 
             if (!loggedIn) {
                 loggedIn = ((await loginToRouter(page, signal)) === true);
@@ -542,11 +549,19 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
             }
 
             verboseLog("[+] Navigating to the WDS Settings Page...");
-            await processAction(waitAndClick, page, ELEMENT_SELECTORS.topAdvancedTab);
-            await processAction(waitAndClick, page, ELEMENT_SELECTORS.sideWirelessSettings);
-            await processAction(waitAndClick, page, ELEMENT_SELECTORS.sideAdvancedWirelessSettings);
-            await processAction(waitAndClick, page, ELEMENT_SELECTORS.wds5gTab);
-    
+
+            await processAction(
+                () => waitAndClick(page, ELEMENT_SELECTORS.topAdvancedTab)
+                    .then(() => waitAndClick(page, ELEMENT_SELECTORS.sideWirelessSettings))
+                    .then(() => waitAndClick(page, ELEMENT_SELECTORS.sideAdvancedWirelessSettings))
+                    .then(() => waitAndClick(page, ELEMENT_SELECTORS.wds5gTab))
+                    .catch((error) => {
+
+                        throw error;
+
+                    })
+            );
+
             await processAction(
                 page, '$eval',
                 ELEMENT_SELECTORS.wdsEnableBridgeControlCheckbox,
@@ -590,10 +605,20 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
             const scanResultElement = await scanForWifiNetwork(
                 async () => {
 
-                    await processAction(waitAndClick, page, ELEMENT_SELECTORS.wdsScanButton);
-                    await processAction(page, 'waitForSelector', ELEMENT_SELECTORS.wdsScanResultsTable);
-                    let scanResults = await processAction(page, '$$', ELEMENT_SELECTORS.wdsScanResultTableRows);
                     let result: puppeteer.ElementHandle<Element> | null = null;
+
+                    await waitAndClick(page, ELEMENT_SELECTORS.wdsScanButton)
+                        .then(() => page.waitForSelector(ELEMENT_SELECTORS.wdsScanResultsTable))
+                        .catch((error) => { throw error; });
+                    // await processAction(
+                    //     () => waitAndClick(page, ELEMENT_SELECTORS.wdsScanButton)
+                    //         .then(() => page.waitForSelector(ELEMENT_SELECTORS.wdsScanResultsTable))
+                    //         // .catch((error) => { throw error; })
+                    // ).catch((error) => { throw error; });
+                    // await processAction(waitAndClick, page, ELEMENT_SELECTORS.wdsScanButton)
+                    //     .catch((error) => { throw error; });
+                    // await processAction(page, 'waitForSelector', ELEMENT_SELECTORS.wdsScanResultsTable);
+                    let scanResults = await processAction(page, '$$', ELEMENT_SELECTORS.wdsScanResultTableRows);
             
                     // verboseLog("[+] Evaluating WDS Scan Results...");
             
@@ -612,6 +637,9 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
                         if (result)
                             return result;
                     }
+                    
+                    if (!result)
+                        waitAndClick(page, ELEMENT_SELECTORS.wdsScanResultBackButton);
 
                 },
                 RECONNECTION_METHOD
@@ -623,7 +651,9 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
             );
     
             verboseLog("[+] Re-Establishing the WDS Bridge...");
-            await waitAndClick(page, ELEMENT_SELECTORS.wdsSaveSettingsButton);
+            await waitAndClick(page, ELEMENT_SELECTORS.wdsSaveSettingsButton).catch(
+                (error) => { throw error; }
+            );
     
             if (await checkForAlerts(page))
                 await page.click(ELEMENT_SELECTORS.alertConfirmationButton);
@@ -634,6 +664,11 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
             await screenshot(page, 'success');
         }
         catch (error) {
+            if (typeof page != 'undefined')
+                await screenshot(page, 'reconnect-error');
+
+            await cleanup();
+
             if (error instanceof UnrecoverableError || error instanceof ReconnectionMethod.MainRouterError) {
                 return reject(error);
             }
@@ -642,14 +677,9 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
             }
             else {
                 console.error("Failed to Reconnect the WDS Bridge:", error);
-    
-                if (typeof page != 'undefined')
-                    await screenshot(page, 'reconnect-error');
+                return resolve(success);
             }
         }
-    
-        await cleanup();
-        resolve(success);
 
     });
 
@@ -664,12 +694,17 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
 const setup: ReconnectionMethod.SetupFunction = (wasDeferred, signal): AbortableAsyncOperation<boolean> => new Promise(
     async (resolve, reject) => {
 
-        const loginResult = await testLogin(!wasDeferred, signal).catch(() => false);
+        const loginResult = await testLogin(!wasDeferred, signal).catch((error) => reject(new Error(
+            `The Specified Login Credentials are invalid: ${(error as Error).message}`,
+            { cause: error }
+        )));
 
-        if (loginResult === false)
-            return reject(new Error("The Specified Login Credentials are invalid."));
-
-        return resolve(loginResult);
+        if (typeof loginResult == 'boolean') {
+            if (loginResult === false)
+                return reject(new Error("The Specified Login Credentials are invalid."));
+    
+            return resolve(loginResult);
+        }
 
     }
 );

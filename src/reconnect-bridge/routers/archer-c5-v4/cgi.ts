@@ -1084,6 +1084,7 @@ const makeRequest = ( options: HttpRequestOptions = {} ): Promise<HttpResponse> 
 
     const MAX_INTERNAL_SERVER_ERROR_RETRIES = 3;
 
+    const signalHandlerController = new AbortController();
     let timestamps: RequestTimestamps = {
         requestInit: dayjs(),
         requestStart: null,
@@ -1092,7 +1093,7 @@ const makeRequest = ( options: HttpRequestOptions = {} ): Promise<HttpResponse> 
         responseComplete: null
     };
 
-    return new Promise((resolve, reject) => {
+    return new Promise<HttpResponse>((resolve, reject) => {
         
         const programVars = customEnvVarManager.getProgramVars();
         let requestAttempts = 0;
@@ -1232,7 +1233,7 @@ const makeRequest = ( options: HttpRequestOptions = {} ): Promise<HttpResponse> 
                     throw new LogicError("An HTTP Request Queue Processing Timeout is already in-use!");
 
                 if (options.signal)
-                    options.signal.addEventListener('abort', abortHandler);
+                    options.signal.addEventListener('abort', abortHandler, { once: true, signal: signalHandlerController.signal });
 
                 verboseDataLog(`Next Enqueued Request in ${duration}ms.`);
                 requestQueueProcessingTimeout = setTimeout(timeoutHandler, duration);
@@ -1446,7 +1447,7 @@ const makeRequest = ( options: HttpRequestOptions = {} ): Promise<HttpResponse> 
             reject(error);
         }
 
-    });
+    }).finally(signalHandlerController.abort.bind(signalHandlerController));
 
 };
 
@@ -1691,12 +1692,14 @@ async function loginToRouter ( credentialSupplier?: LoginCredentialProvider ): P
             // Attempt to login to the Router Management Interface
             if (encryptedCredentials !== null)
                 return await login(encryptedCredentials);
-    
+            
             verboseLog(`The '${credentialSupplier.method}' Credential Supplier returned ${colorizeOutput(null)}.`);
         }
         catch (error) {
             console.error(`Failed to Login to the Router Management Interface using the '${credentialSupplier.method}' method:`, error);
         }
+
+        return false;
     }
     else {
         let encryptedCredentials = await getLoginCredentials(false, false);
