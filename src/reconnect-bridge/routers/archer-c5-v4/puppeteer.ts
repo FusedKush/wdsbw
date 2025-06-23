@@ -47,6 +47,9 @@ import { existsSync, mkdirSync } from "fs";
 import { scanForWifiNetwork } from "./common.js";
 
 
+type PuppeteerInstanceTuple = [Browser, Page];
+
+
 /**
  * The CSS Selectors used to match one or more elements
  * used to programatically navigate through and interact with
@@ -82,6 +85,7 @@ const ROUTER_SCREENSHOT_PATH = `${BASE_PUPPETEER_SCREENSHOTS_PATH}/${BRIDGE_ROUT
 const getRouterManagementUrl = () => `http://${getProgramVars().bridgeRouter.ip}` as const;
 
 
+var currentInstance: PuppeteerInstanceTuple | null = null;
 /**
  * Indicates whether or not we are currently logged in
  * to the Bridge Router Management Interface.
@@ -94,7 +98,6 @@ const getRouterManagementUrl = () => `http://${getProgramVars().bridgeRouter.ip}
  * @see {@link logoutFromRouter `logoutFromRouter()`}
  */
 var loggedIn: boolean = false;
-
 
 /**
  * {@link Page.prototype.waitForSelector Wait} for a *Clickable Element* matching the specified `selector`
@@ -241,25 +244,36 @@ async function screenshot ( page: Page, name: string ): Promise<boolean> {
  *              {@link Browser} instance followed by an associated
  *              {@link Page} handle.
  */
-async function createInstance (): Promise<[Browser, Page]> {
+async function createInstance (): Promise<PuppeteerInstanceTuple> {
 
-    let browser: Browser;
-    let page: Page;
-    
+    if (currentInstance)
+        return currentInstance;
+
     try {
-        browser = await puppeteer.launch({ slowMo: getProgramVars().reconnectionMethods.actionCooldown.puppeteer });
-        page = await browser.newPage();
+        let browser = await puppeteer.launch({
+            slowMo: getProgramVars().reconnectionMethods.actionCooldown.puppeteer
+        }).catch((error) => { throw error });
+        let page = await browser.newPage();
 
-        return [browser, page];
+        currentInstance = [browser, page];
+        return currentInstance;
     }
     catch (error) {
-        if (typeof browser! == 'object')
-            browser!.close();
+        if (currentInstance)
+            await closeInstance();
 
         if (!AbortError.isAbortError(error))
             throw new Error("Failed to create a new Puppeteer Browser Instance!", { cause: error });
         else
             throw error;
+    }
+
+}
+async function closeInstance (): Promise<void> {
+
+    if (currentInstance) {
+        await currentInstance[0].close();
+        currentInstance = null;
     }
 
 }
@@ -495,8 +509,8 @@ async function testLogin <
         }
     }
     finally {
-        if (typeof browser! == 'object')
-            browser.close();
+        if (logout)
+            await closeInstance();
     }
 
 }
@@ -525,12 +539,13 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
                         await logoutFromRouter(page);
                     }
                 }
-    
-                await browser.close();
             }
         }
         catch (error) {
             verboseLog("[-] Failed to Log Out of the Management Interface:", error);
+        }
+        finally {
+            await closeInstance();
         }
 
     }
