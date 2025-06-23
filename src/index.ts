@@ -608,22 +608,22 @@ function ensureBridgeIsUp ( printStatus?: boolean ): AbortableAsyncOperation<boo
                     () => verifyBridgeStatus(abortController.signal, printStatus).then(
                         (resultDetails) => {
                 
-                            if ( [BridgeVerificationResult.RECONNECTION_FAILED, BridgeVerificationResult.BRIDGE_ROUTER_OFFLINE].includes(resultDetails.result) )
-                                throw (
+                            if ( [BridgeVerificationResult.RECONNECTION_FAILED, BridgeVerificationResult.BRIDGE_ROUTER_OFFLINE].includes(resultDetails.result) ) {
+                                console.error(
                                     resultDetails.result == BridgeVerificationResult.RECONNECTION_FAILED
                                         ? "Failed to Re-Establish the WDS Bridge"
                                         : "The Bridge Router is Currently Offline"
                                 );
+                                return resolve(false);
+                            }
 
                             recentlyReconnected = (resultDetails.result == BridgeVerificationResult.RECONNECTED || printStatus === true);
                             
                             if (resultDetails.result != BridgeVerificationResult.ABORTED) {
-                                if (resultDetails.result == BridgeVerificationResult.RECONNECTED || resultDetails.result == BridgeVerificationResult.BRIDGE_UP) {
+                                if (resultDetails.result == BridgeVerificationResult.RECONNECTED)
                                     ProgramStats.addBridgeOutageRecord(originalCheckinTime, null, resultDetails.cause);
-
-                                    if (resultDetails.result == BridgeVerificationResult.BRIDGE_UP)
-                                        ProgramStats.updateProgramStats('failedPingCount');
-                                }
+                                else if (resultDetails.result == BridgeVerificationResult.BRIDGE_UP)
+                                    ProgramStats.updateProgramStats('failedPingCount');
                                 
                                 verificationInterval.resume();
                                 resolve(true);

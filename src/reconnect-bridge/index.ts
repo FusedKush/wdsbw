@@ -155,11 +155,13 @@ export async function verifyBridgeStatus ( signal: AbortSignal, printStatus: boo
     let previousBridgeStatus: BridgeStatus | null = null;
 
     return new Promise<BridgeVerificationResult> (async (resolve, reject) => {
-            
+
+        let retryTimeout: NodeJS.Timeout | null = null;
+
         function registerRetryTimeout () {
 
             previousBridgeStatus = currentBridgeStatus;
-            setTimeout(verify, retryTime);
+            retryTimeout = setTimeout(verify, retryTime);
             retryTime = Math.min(retryTime * 2, programVars.retries.maxRetryTime);
     
         }
@@ -206,7 +208,10 @@ export async function verifyBridgeStatus ( signal: AbortSignal, printStatus: boo
                     ).then(async (result) => {
 
                         if (result) {
-                            currentBridgeStatus = await checkBridgeStatus();
+                            let attempts: number = 0;
+
+                            while (attempts < 3 && currentBridgeStatus != 'up')
+                                currentBridgeStatus = await checkBridgeStatus();
 
                             if (currentBridgeStatus == 'up') {
                                 console.log();

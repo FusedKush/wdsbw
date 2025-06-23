@@ -78,7 +78,7 @@ export type PingResultRecord = ObjectUtils.MakeOptional<{
  * {@link pingMainRouter `pingMainRouter()`}
  * {@link pingBridgeRouter `pingBridgeRouter()`}
  */
-export interface PingResult {
+export interface BasePingResult {
 
     /**
      * Indicates whether the Ping Request *succeeded* or *failed*.
@@ -93,6 +93,12 @@ export interface PingResult {
      * @see {@link pingFailed}
      */
     success: boolean;
+
+}
+export interface SuccessfulPingResult extends BasePingResult {
+
+    success: true;
+
     /**
      * Indicates whether or not one or more `ping`s sent
      * to the Main or Bridge Router *failed* and had to be retried.
@@ -118,7 +124,24 @@ export interface PingResult {
      */
     pingTime: number | typeof SUBMILLISECOND_PING;
 
-};
+}
+export interface FailedPingResult extends BasePingResult {
+
+    success: false;
+
+    pingError: FailedPingResult.PingError;
+
+}
+export namespace FailedPingResult {
+
+    export enum PingError {
+
+        GENERAL_FAILURE = 'General Failure'
+
+    }
+
+}
+export type PingResult = SuccessfulPingResult | FailedPingResult;
 
 
 /* Constants */
@@ -193,11 +216,7 @@ export var totalPingCount: number = 0;
 const ping = ( address: IpAddress ): Promise<PingResult> => new Promise((resolve, reject) => {
         
     let attempts = 0;
-    let result: PingResult = {
-        success: false,
-        pingFailed: false,
-        pingTime: 0
-    };
+    let result = {} as PingResult;
 
     const pingAddress = () => {
 
@@ -239,7 +258,7 @@ const ping = ( address: IpAddress ): Promise<PingResult> => new Promise((resolve
         
                 totalPingCount++;
                 avgPingTime = (totalPingResultSum / totalPingCount);
-                result.pingTime = pingTime;
+                (result as SuccessfulPingResult).pingTime = pingTime;
     
                 if (ProgramStats.stats.minPing === null || (pingTime == SUBMILLISECOND_PING && ProgramStats.stats.minPing != SUBMILLISECOND_PING) || pingTime < ProgramStats.stats.minPing)
                     ProgramStats.updateProgramStats('minPing', pingTime);
@@ -264,11 +283,16 @@ const ping = ( address: IpAddress ): Promise<PingResult> => new Promise((resolve
         
         if (pingTimeResult !== null) {
             pingResult = true;
-            result.success = true;
+            (result as SuccessfulPingResult).success = true;
         }
-        else if (cmdOutput.includes("PING: transmit failed. General failure.")) {
+        else {
             pingResult = null;
-            result.pingFailed = true;
+            (result as FailedPingResult).success = false;
+            (result as SuccessfulPingResult).pingFailed = true;
+
+            if (cmdOutput.includes("PING: transmit failed. General failure.")) {
+                (result as FailedPingResult).pingError = FailedPingResult.PingError.GENERAL_FAILURE;
+            }
         }
 
         if (pingResult !== null) {
@@ -278,16 +302,23 @@ const ping = ( address: IpAddress ): Promise<PingResult> => new Promise((resolve
             ProgramStats.updateProgramStats('failedPingCount');
 
             if (attempts <= MAX_FAILURE_RETRIES) {
-                console.log(
-                    "General Failure while pinging "
-                        + colorizeOutput(address, ForegroundColor.YELLOW)
-                        + (attempts <= MAX_FAILURE_RETRIES ? ' Retrying...' : '')
-                        + '!'
+                verboseLog(
+                    (pingResult === null ? "General Failure while pinging" : "Failed to ping"),
+                    colorizeOutput(address, ForegroundColor.YELLOW),
+                    ". Retrying..."
                 );
-                return resolve(result);
+                setTimeout(pingAddress, PING_RETRY_COOLDOWN);
             }
-
-            setTimeout(pingAddress, PING_RETRY_COOLDOWN);
+            else {
+                console.error(
+                    (pingResult === null ? "General Failure while pinging" : "Failed to ping"),
+                    colorizeOutput(address, ForegroundColor.YELLOW),
+                    "after",
+                    colorizeOutput(attempts, ForegroundColor.CYAN),
+                    "attempts!"
+                );
+                resolve(result);
+            }
         }
             
     };
