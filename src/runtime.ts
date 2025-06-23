@@ -697,6 +697,7 @@ export namespace ProgramStats {
                 throw new TypeError("The specified Check-In Time cannot be in the future.");
         }
 
+        verboseDataLog(`Updating Last Check-In Time to`, time);
         lastCheckInTime = time;
         return lastCheckInTime;
 

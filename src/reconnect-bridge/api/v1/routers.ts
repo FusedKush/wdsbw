@@ -1665,6 +1665,17 @@ export namespace ReconnectionMethod {
 
                 throw error;
 
+            })
+            .finally(() => {
+
+                /* 
+                 * We should always update the `lastCheckInTime` after running
+                 * the Current Reconnection Method to ensure that long-lasting calls
+                 * when attempting to re-establish the WDS Bridge are not falsely
+                 * interpreted as gaps in coverage during the next call to `getBridgeStatus()`.
+                 */
+                ProgramStats.updateLastCheckInTime();
+
             });
 
     }

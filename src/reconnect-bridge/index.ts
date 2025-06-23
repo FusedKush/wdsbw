@@ -331,14 +331,6 @@ export async function verifyBridgeStatus ( signal: AbortSignal, printStatus: boo
     })).finally(() => {
 
         verifyingBridgeStatus = false;
-        
-        /* 
-         * Calls to `verifyBridgeStatus()` should always update the 
-         * `lastCheckInTime` at the very end to ensure that long-lasting calls
-         * (such as when attempting to re-establish the WDS Bridge) are not falsely
-         * interpreted as gaps in coverage during the next call to `getBridgeStatus()`.
-         */
-        ProgramStats.updateLastCheckInTime();
 
     });
 
