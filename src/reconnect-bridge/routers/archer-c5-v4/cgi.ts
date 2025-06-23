@@ -380,30 +380,34 @@ namespace LoginCredentials {
  * 
  * @template NameT  The type of the {@link LoginCredentialProvider.name name} property.
  */
-interface LoginCredentialProvider <NameT extends LoginCredentialProvider.ProviderName = LoginCredentialProvider.ProviderName> {
+class LoginCredentialProvider <
+    NameT extends LoginCredentialProvider.ProviderName = LoginCredentialProvider.ProviderName
+> implements LoginCredentialProvider.ProviderDetails {
+
+    readonly name: NameT;
+    readonly method: string;
+    readonly supplier: LoginCredentialProvider.ProviderFunction;
+
+
+    constructor ( details: LoginCredentialProvider.ProviderDetails ) {
+
+        const PROPERTIES = (['name', 'method', 'supplier'] as const satisfies (keyof LoginCredentialProvider.ProviderDetails)[]);
+
+        for (const property in details)
+            if (PROPERTIES.includes(property as any))
+                this[property] = details[property];
+
+    }
+
 
     /**
-     * The {@link LoginCredentialProviderName Unique Name}
-     * of the Login Credential Provider.
-     * 
-     * @see {@link LoginCredentialProviderName}
-     * @see {@link method}
+     * @override
      */
-    readonly name: NameT;
-    /**
-     * The Human-Readable Name of or method used by
-     * the Login Credential Provider.
-     * 
-     * @see {@link LoginCredentialProvider.name name}
-     */
-    readonly method: string;
-    /**
-     * The {@link LoginCredentialProviderFunction Login Credential Provider Function}
-     * containing the logic of the Login Credential Provider.
-     * 
-     * @see {@link LoginCredentialProviderFunction}
-     */
-    readonly supplier: LoginCredentialProvider.ProviderFunction;
+    toString (): string {
+
+        return `'${this.name}' (${this.method})`;   
+
+    }
 
 }
 namespace LoginCredentialProvider {
@@ -481,6 +485,33 @@ namespace LoginCredentialProvider {
     export type ProviderMap = {
         [Name in ProviderName]: LoginCredentialProvider<Name>;
     };
+
+    export interface ProviderDetails <NameT extends ProviderName = ProviderName> {
+
+        /**
+         * The {@link LoginCredentialProviderName Unique Name}
+         * of the Login Credential Provider.
+         * 
+         * @see {@link LoginCredentialProviderName}
+         * @see {@link method}
+         */
+        name: NameT;
+        /**
+         * The Human-Readable Name of or method used by
+         * the Login Credential Provider.
+         * 
+         * @see {@link LoginCredentialProvider.name name}
+         */
+        method: string;
+        /**
+         * The {@link LoginCredentialProviderFunction Login Credential Provider Function}
+         * containing the logic of the Login Credential Provider.
+         * 
+         * @see {@link LoginCredentialProviderFunction}
+         */
+        supplier: LoginCredentialProvider.ProviderFunction;
+
+    }
 
 }
 
@@ -849,7 +880,7 @@ Enable`
  */
 const LOGIN_CREDENTIAL_PROVIDERS = {
 
-    [LoginCredentialProvider.ProviderName.ENV_VARS]: {
+    [LoginCredentialProvider.ProviderName.ENV_VARS]: new LoginCredentialProvider({
         name: LoginCredentialProvider.ProviderName.ENV_VARS,
         method: "Environment Variables",
         supplier: () => {
@@ -875,9 +906,9 @@ const LOGIN_CREDENTIAL_PROVIDERS = {
             }
 
         }
-    },
+    }),
 
-    [LoginCredentialProvider.ProviderName.MANUAL_ENCRYPTION]: {
+    [LoginCredentialProvider.ProviderName.MANUAL_ENCRYPTION]: new LoginCredentialProvider({
         name: LoginCredentialProvider.ProviderName.MANUAL_ENCRYPTION,
         method: "Manual Encryption",
         supplier: async (plaintextUsername, plaintextPassword) => {
@@ -909,9 +940,9 @@ const LOGIN_CREDENTIAL_PROVIDERS = {
             };
                 
         }
-    },
+    }),
 
-    [LoginCredentialProvider.ProviderName.BROWSER_ENCRYPTION]: {
+    [LoginCredentialProvider.ProviderName.BROWSER_ENCRYPTION]: new LoginCredentialProvider({
         name: LoginCredentialProvider.ProviderName.BROWSER_ENCRYPTION,
         method: "Browser Encryption",
         supplier: async (plaintextUsername, plaintextPassword) => {
@@ -949,9 +980,9 @@ const LOGIN_CREDENTIAL_PROVIDERS = {
             }
 
         }
-    },
+    }),
 
-    [LoginCredentialProvider.ProviderName.CACHED_CREDENTIALS]: {
+    [LoginCredentialProvider.ProviderName.CACHED_CREDENTIALS]: new LoginCredentialProvider({
         name: LoginCredentialProvider.ProviderName.CACHED_CREDENTIALS,
         method: "Cached Login Credentials",
         supplier: () => {
@@ -962,7 +993,7 @@ const LOGIN_CREDENTIAL_PROVIDERS = {
             return encryptedLoginCredentials;
 
         }
-    }
+    })
 
 } as const satisfies LoginCredentialProvider.ProviderMap;
 
@@ -1682,7 +1713,7 @@ async function loginToRouter ( credentialSupplier?: LoginCredentialProvider ): P
     if (loggedIn)
         return true;
 
-    verboseLog(`[+] Attempting to login to the Router Management Interface...`);
+    verboseLog(`[+] Attempting to login to the Router Management Interface${credentialSupplier ? ` using the ${colorizeOutput(credentialSupplier.toString(), ForegroundColor.GREEN)} Credential Supplier` : ''}...`);
 
     if (credentialSupplier) {
         try {
@@ -1822,13 +1853,13 @@ async function getLoginCredentials <
         loggedIn = await loginToRouter(LOGIN_CREDENTIAL_PROVIDERS[currentCredentialSupplier]);
 
         if (!loggedIn) {
-            if (currentCredentialSupplier == 'cachedCredentials' && encryptedLoginCredentials) {
+            if (currentCredentialSupplier == LoginCredentialProvider.ProviderName.CACHED_CREDENTIALS && encryptedLoginCredentials) {
                 encryptedLoginCredentials = null;
                 verboseLog("Cached CGI Login Credentials are Stale! Attempting to generate new credentials...");
             }
 
             loginAttempts++;
-            currentCredentialSupplier = ObjectUtils.nextKey(LOGIN_CREDENTIAL_PROVIDERS, currentCredentialSupplier)!;
+            currentCredentialSupplier = ObjectUtils.nextKey(LOGIN_CREDENTIAL_PROVIDERS, currentCredentialSupplier, true)!;
         }
         else {
             loginCredentials = encryptedLoginCredentials;
@@ -1839,7 +1870,11 @@ async function getLoginCredentials <
         if (logout)
             await logoutFromRouter();
 
-        verboseLog(`[+] Successfully Retrieved Valid Login Credentials from the '${currentCredentialSupplier}' (${LOGIN_CREDENTIAL_PROVIDERS[currentCredentialSupplier].method}) Login Credential Provider!`);
+        verboseLog(
+            "[+] Successfully Retrieved Valid Login Credentials from the",
+            colorizeOutput(`'${LOGIN_CREDENTIAL_PROVIDERS[currentCredentialSupplier]}'`, ForegroundColor.GREEN),
+            "Login Credential Provider!"
+        );
         verboseDataLog(loginCredentials);
     }
     else if (existingCredentials) {
