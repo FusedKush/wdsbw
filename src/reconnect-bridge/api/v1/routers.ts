@@ -504,7 +504,7 @@ export class ReconnectionMethod <NameT extends string = string, RouterT extends 
             })
             .catch((error) => {
 
-                if (error instanceof ReconnectionMethod.ReconnectionError)
+                if (error instanceof ReconnectionMethod.ReconnectionError || error instanceof ReconnectionMethod.MainRouterError)
                     throw error;
                 else
                     throw new ReconnectionMethod.ReconnectionError(this, { cause: error });
