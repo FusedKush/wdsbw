@@ -7822,7 +7822,7 @@ export namespace ConsoleUtils {
 
             if ( (typeof matchOrColors == 'string' || matchOrColors instanceof RegExp) && typeof colorsOrOriginalColors == 'number' && typeof originalColors != 'undefined' )
                 colors = originalColors;
-            else if ( (typeof matchOrColors == 'number' || matchOrColors instanceof Map) && !isNullable(colorsOrOriginalColors) )
+            else if ( (typeof matchOrColors == 'number' || matchOrColors === null || matchOrColors instanceof Map) && !isNullable(colorsOrOriginalColors) )
                 colors = colorsOrOriginalColors;
 
             if (typeof colors == 'number')
