@@ -38,7 +38,9 @@ import {
     verboseDataLog,
     verboseDataLogging,
     verboseLog,
-    verboseLogging
+    verboseLogging,
+    WIFI_FREQUENCY_LIST,
+    WifiFrequency
 } from "../../../common.js";
 import { ProgramStats } from "../../../runtime.js";
 import { getProgramVars, type ProgramVariables } from "../../../env.js";
@@ -52,6 +54,217 @@ import { NO_REGISTERED_METHODS_ERROR_MESSAGE } from "../../common.js";
  * @since       `v1`
  */
 export const BASE_PUPPETEER_SCREENSHOTS_PATH = "./reconnect-bridge/puppeteer-screenshots" as const;
+
+
+/* Feature Support */
+
+export interface SupportedFeatures {
+
+    canSetupBridge?: boolean;
+    frequencies?: SupportedFeatures.SupportedFrequencies;
+    canChangeFrequency?: boolean;
+
+}
+export namespace SupportedFeatures {
+
+    /**
+     * An {@link Error} thrown by a {@link ReconnectionMethod}
+     * when attempting to {@link ReconnectionMethod.setup set it up}
+     * or {@link ReconnectionMethod.run run it}.
+     * 
+     * If specified during construction, the {@link ReconnectionMethod}
+     * that threw the error will be available via the {@link supportedFeatures} property.
+     * 
+     * @apistatus   ✔️ **Public**
+     * @since       `v1`
+     * 
+     * @see {@link ReconnectionError}
+     * @see {@link SetupError}
+     */
+    export class UnsupportedFeatureError extends Error implements UnsupportedFeatureError.ErrorDetails {
+
+        /**
+         * The {@link ReconnectionMethod} that threw the error,
+         * if specified during construction.
+         */
+        readonly supportedFeatures?: Readonly<SupportedFeatures>;
+        readonly unsupportedFeature?: FeatureName;
+        readonly unsupportedRouterOrMethod?: GenericBridgeRouter | ReconnectionMethod;
+
+    
+        /**
+         * Construct a new `ReconnectionMethodError` with a default error message.
+         */
+        constructor ();
+        /**
+         * Construct a new `ReconnectionMethodError` with the specified `message`.
+         * 
+         * @param message   The error message to use.
+         */
+        constructor ( message?: string );
+        /**
+         * Construct a new `ReconnectionMethodError` with the specified error `options`.
+         * 
+         * @param options   Additional {@link ErrorOptions error options} to set.
+         */
+        constructor ( options?: UnsupportedFeatureError.ErrorOptions );
+        /**
+         * Construct a new `ReconnectionMethodError` with the specified `message` and error `options`.
+         * 
+         * @param message   The error message to use.
+         * @param options   Additional {@link ErrorOptions error options} to set.
+         */
+        constructor ( message?: string, options?: UnsupportedFeatureError.ErrorOptions );
+        constructor (
+            messageOrOptions?: string | UnsupportedFeatureError.ErrorOptions,
+            options?: UnsupportedFeatureError.ErrorOptions
+        ) {
+
+            const errorOptions = (typeof messageOrOptions == 'object' ? messageOrOptions : options);
+            const errorMessage = (() => {
+
+                if (typeof messageOrOptions == 'string')
+                    return messageOrOptions;
+
+                let message = (
+                    errorOptions?.unsupportedFeature
+                        ? `Optional Feature '${errorOptions.unsupportedFeature}' is not supported`
+                        : "The requested optional feature is not supported"
+                );
+                
+                if (errorOptions?.unsupportedRouterOrMethod)
+                        message += ` by ${errorOptions.unsupportedRouterOrMethod instanceof BridgeRouter ? 'Bridge Router' : 'Reconnection Method'} '${errorOptions.unsupportedRouterOrMethod}'`;
+
+                    return `${message}.`;
+
+            })();
+                
+            super(errorMessage, errorOptions);
+            
+            if (errorOptions) {
+                (['supportedFeatures', 'unsupportedFeature', 'unsupportedRouterOrMethod'] as const satisfies (keyof UnsupportedFeatureError.ErrorDetails)[])
+                    .forEach((function ( key: string ) {
+    
+                        if (key in errorOptions)
+                            this[key] = errorOptions[key];
+    
+                    }).bind(this));
+            }
+    
+        }
+    
+    }
+    export namespace UnsupportedFeatureError {
+
+        export interface ErrorDetails {
+
+            supportedFeatures?: Readonly<SupportedFeatures>;
+            unsupportedFeature?: FeatureName;
+            unsupportedRouterOrMethod?: GenericBridgeRouter | ReconnectionMethod;
+
+        }
+
+        export interface ErrorOptions extends globalThis.ErrorOptions, ErrorDetails {}
+
+    }
+
+    export type SupportedFrequencies = Partial<Record<WifiFrequency, boolean>>;
+    export type FeatureName = (keyof SupportedFeatures | keyof SupportedFrequencies);
+
+    type ExtendableSupportedFeaturesHelper <T extends object> = (
+        {
+            [K in keyof T as (T[K] extends (object | true) ? K : never)]: (
+                T[K] extends object
+                    ? ExtendableSupportedFeaturesHelper<T[K]>
+                    : true
+            );
+        } & {
+            [K in keyof T as (T[K] extends (boolean | undefined) ? K : never)]?: (
+                T[K] extends false
+                    ? false
+                    : boolean
+            );
+        }
+    )
+    export type ExtendableSupportedFeatures <T extends SupportedFeatures> = SupportedFeatures & ExtendableSupportedFeaturesHelper<T>;
+
+    export const DEFAULT_SUPPORT = {
+        canSetupBridge: false,
+        frequencies: {
+            "2.4GHz": false,
+            "5GHz": true
+        },
+        canChangeFrequency: false
+    } as const satisfies ObjectUtils.RequiredRecursive<SupportedFeatures>;
+
+    export function testFeatureSupport <ThrowsT extends boolean = false> (
+        base: SupportedFeatures,
+        test: SupportedFeatures,
+        options?: testFeatureSupport.Options<ThrowsT>
+    ): (ThrowsT extends true ? true : boolean) {
+
+        const baseSupport = Object.assign({}, SupportedFeatures.DEFAULT_SUPPORT, base);
+        const testSupport = Object.assign({}, SupportedFeatures.DEFAULT_SUPPORT, test);
+        const fullOptions = Object.assign({}, testFeatureSupport.DEFAULT_OPTIONS, options ?? {});
+
+        try {
+            if (baseSupport.canSetupBridge && !testSupport.canSetupBridge) {
+                throw new TypeError(`${fullOptions.baseName ?? 'The Base'} requires feature 'bridgeSetup' that ${fullOptions.testName ?? 'the test'} does not support.`);
+            }
+            else {
+                for (const frequency in baseSupport.frequencies) {
+                    if (baseSupport.frequencies["2.4GHz"] && !testSupport.frequencies["2.4GHz"]) {
+                        throw new TypeError(`${fullOptions.baseName ?? 'The Base'} requires the ${frequency} Wi-Fi Frequency that ${fullOptions.testName ?? 'the test'} does not support.`);
+                    }
+                }
+            }
+        }
+        catch (error) {
+            if (fullOptions.throwOnFailure)
+                throw error;
+
+            return false as (ThrowsT extends true ? true : boolean);
+        }
+
+        return true;
+
+    }
+    export namespace testFeatureSupport {
+
+        export interface Options <ThrowsT extends boolean = boolean> {
+
+            baseName?: string;
+            testName?: string;
+            throwOnFailure?: ThrowsT;
+
+        }
+
+        export const DEFAULT_OPTIONS = {
+            throwOnFailure: false
+        } as const satisfies Options;
+
+    }
+
+    export function getFeatureSupport ( ...featureSupport: SupportedFeatures[] ): SupportedFeatures {
+
+        let calculatedSupport: ObjectUtils.RequiredRecursive<SupportedFeatures> = Object.assign({}, DEFAULT_SUPPORT);
+
+        featureSupport.forEach((features) => {
+
+            calculatedSupport.canSetupBridge ||= (features.canSetupBridge ?? false);
+            calculatedSupport.frequencies["2.4GHz"] ||= (features.frequencies?.["2.4GHz"] ?? false);
+            calculatedSupport.frequencies["5GHz"] ||= (features.frequencies?.["5GHz"] ?? false);
+            calculatedSupport.canChangeFrequency ||= (features.canChangeFrequency ?? false);
+
+        });
+
+        return calculatedSupport;
+
+    }
+
+    export var supportedFeatures: SupportedFeatures = Object.assign({}, SupportedFeatures.DEFAULT_SUPPORT);
+
+}
 
 
 /* Bridge Routers */
@@ -72,7 +285,10 @@ export const BASE_PUPPETEER_SCREENSHOTS_PATH = "./reconnect-bridge/puppeteer-scr
  * 
  * @see {@link BridgeRouter.RegisteredRouter}
  */
-export class BridgeRouter <NameT extends string = string> {
+export class BridgeRouter <
+    NameT extends string,
+    FeaturesT extends SupportedFeatures = {}
+> {
 
     /**
      * The unique name and identifier for the `BridgeRouter`.
@@ -91,6 +307,8 @@ export class BridgeRouter <NameT extends string = string> {
      */
     readonly description: string;
 
+    readonly features: Readonly<FeaturesT>;
+
     /**
      * Construct a new `BridgeRouter` with the specified `name` and `description`.
      * 
@@ -102,10 +320,11 @@ export class BridgeRouter <NameT extends string = string> {
      * 
      *                      E.g., `'Archer C5 - Version 4'`
      */
-    constructor ( name: NameT, description: string ) {
+    constructor ( name: NameT, description: string, features?: FeaturesT ) {
 
         this.name = name;
         this.description = description;
+        this.features = Object.freeze( Object.assign({}, SupportedFeatures.DEFAULT_SUPPORT, features) );
 
     }
 
@@ -131,7 +350,7 @@ export class BridgeRouter <NameT extends string = string> {
 }
 export namespace BridgeRouter {
 
-    /* Types */
+    /* Types & Interfaces */
 
     /**
      * An interface representing a *Registered {@link BridgeRouter Bridge Router}*
@@ -150,21 +369,55 @@ export namespace BridgeRouter {
      * 
      * @see {@link BridgeRouter}
      */
-    export interface RegisteredRouter <
+    export class RegisteredRouter <
         RouterNameT extends string = string,
         RouterT extends BridgeRouter<RouterNameT> = BridgeRouter<RouterNameT>
     > {
 
-        /**
-         * The {@link BridgeRouter} that has been registered.
-         */
-        router: RouterT;
+        
         /**
          * One or more {@link registerReconnectionMethod registered}
          * {@link ReconnectionMethod Reconnection Methods}
          * responsible for re-establishing the WDS Bridge on the Bridge Router.
          */
-        methods: ReconnectionMethod.MethodRecord;
+        #methods: Readonly<ReconnectionMethod.MethodRecord> = {};
+        #supportedFeatures: Readonly<SupportedFeatures>;
+
+        /**
+         * The {@link BridgeRouter} that has been registered.
+         */
+        readonly router: RouterT;
+        
+        get methods (): Readonly<ReconnectionMethod.MethodRecord> {
+
+            return this.#methods;
+
+        }
+        get supportedFeatures (): SupportedFeatures {
+
+            return this.#supportedFeatures;
+
+        }
+
+
+        constructor ( router: RouterT, methods?: ReconnectionMethod.MethodRecord ) {
+
+            this.router = router;
+            this.#supportedFeatures = Object.freeze( Object.assign({}, this.router.features) );
+
+            if (methods)
+                for (const name in methods)
+                    this.registerReconnectionMethod(methods[name]);
+
+        }
+
+
+        registerReconnectionMethod ( method: ReconnectionMethod ) {
+
+            this.#methods = Object.freeze( Object.assign({}, this.#methods, { [method.name]: method }) );
+            this.#supportedFeatures = Object.freeze( Object.assign({}, this.#supportedFeatures, method.features) );
+
+        }
 
     };
 
@@ -218,7 +471,7 @@ export namespace BridgeRouter {
      * 
      * @see {@link reconnectionMethods `reconnectionMethods`} 
      */
-    export var registeredRouter: BridgeRouter | null = null;
+    export var registeredRouter: GenericBridgeRouter | null = null;
     
 
     /* Functions */
@@ -238,17 +491,19 @@ export namespace BridgeRouter {
      * @apistatus       ✔️ **Public**
      * @since           `v1`
      */
-    export function registerRouter ( router: BridgeRouter ): void {
+    export function registerRouter ( router: GenericBridgeRouter ): void {
 
         if (registeredRouter)
             throw new LogicError(`Bridge Router ${registeredRouter.toString(true)} has already been registered!`);
 
         registeredRouter = router;
+        SupportedFeatures.supportedFeatures = SupportedFeatures.getFeatureSupport(router.features);
         verboseDataLog(`Successfully registered the ${colorizeOutput(registeredRouter.toString(true), ForegroundColor.YELLOW)} Bridge Router!`);
 
     }
 
 }
+export type GenericBridgeRouter = BridgeRouter<string, SupportedFeatures>;
 
 
 /* Reconnection Methods */
@@ -265,7 +520,20 @@ export namespace BridgeRouter {
  * 
  * @see {@link BridgeRouter}
  */
-export class ReconnectionMethod <NameT extends string = string, RouterT extends BridgeRouter = BridgeRouter> {
+export class ReconnectionMethod <
+    NameT extends string = string,
+    RouterT extends GenericBridgeRouter = GenericBridgeRouter,
+    RequiredFeaturesT extends (
+        RouterT extends BridgeRouter<string, infer RouterFeaturesT>
+            ? SupportedFeatures.ExtendableSupportedFeatures<RouterFeaturesT>
+            : SupportedFeatures
+    ) = (
+        RouterT extends BridgeRouter<string, infer RouterFeaturesT>
+            ? SupportedFeatures.ExtendableSupportedFeatures<RouterFeaturesT>
+            : SupportedFeatures
+    ),
+    FeaturesT extends SupportedFeatures = RequiredFeaturesT
+> {
 
     /* Instance Properties */
 
@@ -296,6 +564,8 @@ export class ReconnectionMethod <NameT extends string = string, RouterT extends 
      * capable of re-establishing the WDS Bridge for.
      */
     readonly router: RouterT;
+
+    readonly features: Readonly<FeaturesT>;
     
     /**
      * The {@link ReconnectionMethod.ReconnectionFunction Reconnection Function}
@@ -432,17 +702,51 @@ export class ReconnectionMethod <NameT extends string = string, RouterT extends 
         name: NameT,
         description: string,
         type: ReconnectionMethod.MethodType,
+        router: (
+            BridgeRouter<any, {}> extends RouterT
+                ? RouterT
+                : (FeaturesT extends RequiredFeaturesT ? never : RouterT)
+        ),
+        fn: ReconnectionMethod.ReconnectionFunction,
+        setupFn?: ReconnectionMethod.SetupFunction,
+        features?: (FeaturesT extends RequiredFeaturesT ? FeaturesT : RequiredFeaturesT)
+    );
+    constructor (
+        name: NameT,
+        description: string,
+        type: ReconnectionMethod.MethodType,
         router: RouterT,
         fn: ReconnectionMethod.ReconnectionFunction,
-        setupFn?: ReconnectionMethod.SetupFunction
+        setupFn: ReconnectionMethod.SetupFunction | undefined,
+        features: (FeaturesT extends RequiredFeaturesT ? FeaturesT : RequiredFeaturesT)
+    )
+    constructor (
+        name: NameT,
+        description: string,
+        type: ReconnectionMethod.MethodType,
+        router: RouterT,
+        fn: ReconnectionMethod.ReconnectionFunction,
+        setupFn?: ReconnectionMethod.SetupFunction,
+        features?: FeaturesT
     ) {
 
         this.name = name;
         this.description = description;
         this.type = type;
         this.router = router;
+        this.features = Object.freeze( Object.assign({}, SupportedFeatures.DEFAULT_SUPPORT, features) );
         this.#fn = fn;
         this.#setupFn = setupFn ?? null;
+
+        SupportedFeatures.testFeatureSupport(
+            this.router.features,
+            this.features as any,
+            {
+                baseName: `Bridge Router ${this.router}`,
+                testName: `Reconnection Method ${this}`,
+                throwOnFailure: true
+            }
+        );
 
         if (!this.#setupFn)
             this.#_setupRan = true;
@@ -1326,6 +1630,7 @@ export namespace ReconnectionMethod {
             return false;
 
         registeredMethods[method.name] = method;
+        SupportedFeatures.supportedFeatures = SupportedFeatures.getFeatureSupport(SupportedFeatures.supportedFeatures, method.features);
         registeredMethodCount++;
 
         if (currentMethod === null)

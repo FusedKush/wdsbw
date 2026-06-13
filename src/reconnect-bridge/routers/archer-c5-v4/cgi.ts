@@ -37,7 +37,8 @@ import {
     registerEnvironmentVariables,
     getEnvironmentVariableName,
     getProgramVars,
-    RuntimeError
+    RuntimeError,
+    BridgeRouter
 } from "../../api/v1/index.js";
 import ForegroundColor = ConsoleUtils.ForegroundColor;
 import colorizeOutput = ConsoleUtils.colorizeOutput;
@@ -2499,7 +2500,15 @@ export const RECONNECTION_METHOD = new ReconnectionMethod(
     ReconnectionMethod.MethodType.CGI,
     BRIDGE_ROUTER,
     reconnect,
-    setup
+    setup,
+    {
+        canSetupBridge: true,
+        frequencies: {
+            "2.4GHz": true,
+            "5GHz": true
+        },
+        canChangeFrequency: true
+    }
 );
 export default RECONNECTION_METHOD;
 

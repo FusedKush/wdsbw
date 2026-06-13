@@ -35,9 +35,58 @@
                 "networkPw": {
                     "description": "The Plaintext Password of the Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
                     "type": "string"
+                },
+                "wifiNetworks": {
+                    "description": "Configuration Options associated with the Wi-Fi Networks associated with the Main Router.",
+                    "type": "object",
+                    "properties": {
+                        "2.4GHz": {
+                            "description": "Configuration Options associated with the 2.4GHz Wi-Fi Network associated with the Main Router.",
+                            "markdownDescription": "Configuration Options associated with the `2.4GHz` Wi-Fi Network associated with the Main Router.",
+                            "type": "object",
+                            "properties": {
+                                "networkName": {
+                                    "description": "The SSID or Name of the 2.4GHz Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    "markdownDescription": "The SSID or Name of the `2.4GHz` Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "networkPw": {
+                                    "description": "The Plaintext Password of the 2.4GHz Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    "markdownDescription": "The Plaintext Password of the `2.4GHz` Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["networkName"]
+                        },
+                        "5GHz": {
+                            "description": "Configuration Options associated with the 5GHz Wi-Fi Network associated with the Main Router.",
+                            "markdownDescription": "Configuration Options associated with the `5GHz` Wi-Fi Network associated with the Main Router.",
+                            "type": "object",
+                            "properties": {
+                                "networkName": {
+                                    "description": "The SSID or Name of the 5GHz Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    "markdownDescription": "The SSID or Name of the `5GHz` Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "networkPw": {
+                                    "description": "The Plaintext Password of the 5GHz Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    "markdownDescription": "The Plaintext Password of the `5GHz` Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    "type": "string"
+                                },
+                                "usesDfsChannels": {
+                                    "description": "Indicates whether or not the Main Router utilizes DFS (Dynamic Frequency Selection) Channels for the 5GHz Wi-Fi Frequency.\n\nSome Bridge Routers and Reconnection Methods do not support using DFS Channels for the WDS Bridge, and this option will prevent such routers and methods from being used to re-establish the WDS Bridge on the 5GHz Wi-Fi Band.",
+                                    "markdownDescription": "Indicates whether or not the Main Router utilizes *DFS (Dynamic Frequency Selection) Channels* for the `5GHz` Wi-Fi Frequency.\n\nSome Bridge Routers and Reconnection Methods do not support using DFS Channels for the WDS Bridge, and this option will prevent such routers and methods from being used to re-establish the WDS Bridge on the 5GHz Wi-Fi Band.",
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": ["networkName"]
+                        }
+                    }
                 }
             },
-            "required": ["ipNum", "networkName"]
+            "required": ["ipNum", "networkName", "wifiNetworks"]
         },
         "bridgeRouter": {
             "description": "Configuration Properties associated with the Bridge Router responsible for operating the WDS Bridge.",
@@ -134,7 +183,13 @@
                     "description": "Defers performing the Setup Routine for each of the Registered Reconnection Methods until the Reconnection Method is invoked to re-establish the WDS Bridge.\n\nWhile this option will allow the program to startup faster, it may also prevent setup errors from being raised, and even the possibility of the program terminating, until an attempt is made to re-establish the WDS bridge using the Reconnection Method.",
                     "markdownDescription": "Defers performing the *Setup Routine* for each of the Registered Reconnection Methods until the Reconnection Method is *invoked* to re-establish the WDS Bridge.\n\nWhile this option will allow the program to startup faster, it may also prevent setup errors from being raised, and even the possibility of the program terminating, until an attempt is made to re-establish the WDS bridge using the Reconnection Method.",
                     "type": "boolean",
-                    "default": false
+                    "default": "false"
+                },
+                "onlyRotateOnFailure": {
+                    "description": "When the `method` option is set to 'auto', this option indicates that the Current Reconnection Method should only be rotated to an alternative Reconnection Method if the Current Reconnection Method fails to re-establish the WDS Bridge.\n\nWhen set to false, the Current Reconnection Method may be rotated in additional situations, including if the Current Reconnection Method does not support an optional feature that is being requested.",
+                    "markdownDescription": "When the `method` option is set to `'auto'`, this option indicates that the Current Reconnection Method should only be rotated to an alternative Reconnection Method if the Current Reconnection Method fails to re-establish the WDS Bridge.\n\nWhen set to `false`, the Current Reconnection Method may be rotated in additional situations, including if the Current Reconnection Method does not support an optional feature that is being requested.",
+                    "type": "boolean",
+                    "default": "false"
                 },
                 "actionCooldown": {
                     "description": "Configuration Properties associated with the cooldown periods between individual actions taken by Reconnection Methods when re-establishing the WDS Bridge.\n\nEach property corresponds to a different type of Reconnection Method and is specified in milliseconds as a non-negative integer that is less than 10000.",
@@ -164,6 +219,19 @@
                             "minimum": 0,
                             "maximum": 10000,
                             "default": 500
+                        }
+                    }
+                },
+                "bridgeFrequency": {
+                    "description": "Configuration Properties associated with the Wi-Fi Frequency being used for the WDS Bridge.",
+                    "type": "object",
+                    "properties": {
+                        "frequency": {
+                            "description": "The Wi-Fi Frequency to use for the WDS Bridge.\n\nThe 'auto' and 'dynamic' options both select the most eligible Wi-Fi Frequency to use based on the Main Router, Bridge Router, and the available Reconnection Methods. However, the 'dynamic' option allows the Wi-Fi Frequency for the WDS Bridge to be changed at runtime while the 'auto' option does not.",
+                            "markdownDescription": "The Wi-Fi Frequency to use for the WDS Bridge.\n\nThe `'auto'` and `'dynamic'` options both select the most eligible Wi-Fi Frequency to use based on the Main Router, Bridge Router, and the available Reconnection Methods. However, the `'dynamic'` option allows the Wi-Fi Frequency for the WDS Bridge to be changed at runtime while the `'auto'` option does not.",
+                            "type": "string",
+                            "default": "auto",
+                            "enum": ["auto", "dynamic", "2.4GHz", "5GHz"]
                         }
                     }
                 },
@@ -212,49 +280,164 @@
         {
             "if": {
                 "properties": {
-                        "bridgeRouter": {
-                            "properties": {
-                                "model": {
-                                    "const": "auto"
-                                }
+                    "bridgeRouter": {
+                        "properties": {
+                            "model": {
+                                "const": "auto"
                             }
                         }
                     }
+                }
             },
             "then": {
                 "properties": {
-                        "reconnectionMethods": {
-                            "properties": {
-                                "method": {
-                                    "const": "auto"
-                                }
+                    "reconnectionMethods": {
+                        "properties": {
+                            "method": {
+                                "const": "auto"
                             }
                         }
                     }
+                }
             }
         },
         {
             "if": {
                 "properties": {
-                        "bridgeRouter": {
-                            "properties": {
-                                "model": {
-                                    "enum": ["archer-c5-v4"]
-                                }
+                    "bridgeRouter": {
+                        "properties": {
+                            "model": {
+                                "enum": ["archer-c5-v4"]
                             }
                         }
                     }
+                }
             },
             "then": {
                 "properties": {
-                        "reconnectionMethods": {
+                    "reconnectionMethods": {
+                        "properties": {
+                            "method": {
+                                "enum": ["auto", "cgi", "puppeteer"]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "reconnectionMethods": {
+                        "properties": {
+                            "bridgeFrequency": {
+                                "properties": {
+                                    "frequency": {
+                                        "enum": ["2.4GHz", "5GHz"]
+                                    }
+                                },
+                                "required": ["frequency"]
+                            }
+                        },
+                        "required": ["bridgeFrequency"]
+                    }
+                },
+                "required": ["reconnectionMethods"]
+            },
+            "then": {
+                "allOf": [
+                    {
+                        "if": {
                             "properties": {
-                                "method": {
-                                    "enum": ["auto", "cgi", "puppeteer"]
+                                "reconnectionMethods": {
+                                    "properties": {
+                                        "bridgeFrequency": {
+                                            "properties": {
+                                                "frequency": {
+                                                    "const": "2.4GHz"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "mainRouter": {
+                                    "properties": {
+                                        "wifiNetworks": {
+                                            "required": ["2.4GHz"]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "if": {
+                            "properties": {
+                                "reconnectionMethods": {
+                                    "properties": {
+                                        "bridgeFrequency": {
+                                            "properties": {
+                                                "frequency": {
+                                                    "const": "5GHz"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "mainRouter": {
+                                    "properties": {
+                                        "wifiNetworks": {
+                                            "required": ["5GHz"]
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+                ]
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "reconnectionMethods": {
+                        "properties": {
+                            "bridgeFrequency": {
+                                "properties": {
+                                    "frequency": {
+                                        "const": "dynamic"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "then": {
+                "properties": {
+                    "reconnectionMethods": {
+                        "properties": {
+                            "bridgeFrequency": {
+                                "properties": {
+                                    "preferredFrequency": {
+                                        "description": "Specifies the Preferred Wi-Fi Frequency to use for the WDS Bridge.\n\nIf specified, the program will always attempt to use this Wi-Fi Frequency for the WDS Bridge wherever possible, re-establishing the WDS Bridge on the desired frequency if necessary.\n\nIf omitted, the program will not attempt to change the Wi-Fi Frequency used for the WDS Bridge unless the current frequency is unavailable.",
+                                        "markdownDescription": "Specifies the Preferred Wi-Fi Frequency to use for the WDS Bridge.\n\nIf specified, the program will always attempt to use this Wi-Fi Frequency for the WDS Bridge wherever possible, re-establishing the WDS Bridge on the desired frequency if necessary.\n\nIf omitted, the program will not attempt to change the Wi-Fi Frequency used for the WDS Bridge unless the current frequency is unavailable.",
+                                        "type": "string",
+                                        "enum": ["2.4GHz", "5GHz"]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     ]

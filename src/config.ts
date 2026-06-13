@@ -303,7 +303,8 @@ import {
     TypeofType,
     TypeofTypeString,
     useVerboseLogging,
-    WIFI_FREQUENCY_LIST
+    WIFI_FREQUENCY_LIST,
+    WifiFrequency
 } from "./common.js";
 import { closeReadlineInterface, createReadlineInterface, KeypressHandlers } from "./runtime.js";
 
@@ -3372,6 +3373,20 @@ export namespace BaseProgramConfiguration {
         }
 
     };
+    const mainRouterNetworkNameValidationFn = (
+        value: string,
+        name: ['mainRouter', 'networks', WifiFrequency, 'networkName']
+    ) => {
+                        
+        if (value.trim().length == 0) {
+            throw new TypeError(
+                "A non-empty Network Name (SSID) must be specified for the "
+                    + ObjectUtils.stringifyDynamicObjectKeys(name)
+                    + " Configuration Property."
+            );
+        }
+
+    }
 
     // export const CONFIG_OPTIONS = [
     //     {
@@ -3705,6 +3720,66 @@ export namespace BaseProgramConfiguration {
                     description: "The Plaintext Password of the Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
                     type: 'string',
                     sensitive: true
+                },
+                wifiNetworks: {
+                    key: 'wifiNetworks',
+                    name: 'Wi-Fi Networks',
+                    description: "Configuration Options associated with the Wi-Fi Networks associated with the Main Router.",
+                    type: 'object',
+                    properties: {
+                        '2.4GHz': {
+                            key: '2.4GHz',
+                            name: '2.4GHz Wi-Fi Network',
+                            description: "Configuration Options associated with the 2.4GHz Wi-Fi Network associated with the Main Router.",
+                            type: 'object',
+                            properties: {
+                                networkName: {
+                                    key: 'networkName',
+                                    name: '2.4GHz Wi-Fi Network Name/SSID',
+                                    description: "The SSID or Name of the 2.4GHz Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    type: 'string',
+                                    required: true,
+                                    validationFn: mainRouterNetworkNameValidationFn
+                                },
+                                networkPw: {
+                                    key: 'networkPw',
+                                    name: '2.4GHz Wi-Fi Network Password',
+                                    description: "The Plaintext Password of the 2.4GHz Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    type: 'string',
+                                    sensitive: true
+                                }
+                            }
+                        },
+                        '5GHz': {
+                            key: '5GHz',
+                            name: '5GHz Wi-Fi Network',
+                            description: "Configuration Options associated with the 5GHz Wi-Fi Network associated with the Main Router.",
+                            type: 'object',
+                            properties: {
+                                networkName: {
+                                    key: 'networkName',
+                                    name: '5GHz Wi-Fi Network Name/SSID',
+                                    description: "The SSID or Name of the 5GHz Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    type: 'string',
+                                    required: true,
+                                    validationFn: mainRouterNetworkNameValidationFn
+                                },
+                                networkPw: {
+                                    key: 'networkPw',
+                                    name: '5GHz Wi-Fi Network Password',
+                                    description: "The Plaintext Password of the 5GHz Wi-Fi Network of the Main Router that the WDS Bridge is to be connected to.",
+                                    type: 'string',
+                                    sensitive: true
+                                },
+                                usesDfsChannels: {
+                                    key: 'usesDfsChannels',
+                                    name: 'Uses DFS Channels',
+                                    description: "Indicates whether or not the Main Router utilizes DFS (Dynamic Frequency Selection) Channels for the 5GHz Wi-Fi Frequency.\n\nSome Bridge Routers and Reconnection Methods do not support using DFS Channels for the WDS Bridge and this option will prevent such routers and methods from being used.",
+                                    type: 'boolean'
+                                }
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -3825,6 +3900,13 @@ export namespace BaseProgramConfiguration {
                     type: 'string',
                     defaultProgramVarValue: 'auto'
                 },
+                onlyRotateOnFailure: {
+                    key: 'onlyRotateOnFailure',
+                    name: 'Only Rotate Reconnection Methods on Failure',
+                    description: "When the `method` option is set to 'auto', this option indicates that the Current Reconnection Method should only be rotated to an alternative Reconnection Method if the Current Reconnection Method fails to re-establish the WDS Bridge.\n\nWhen set to false, the Current Reconnection Method may be rotated in additional situations, including if the Current Reconnection Method does not support an optional feature that is being requested.",
+                    type: 'boolean',
+                    defaultProgramVarValue: false
+                },
                 deferSetup: {
                     key: 'deferSetup',
                     name: 'Defer Setup Routines',
@@ -3909,6 +3991,29 @@ export namespace BaseProgramConfiguration {
                                 }
                 
                             }
+                        }
+                    }
+                },
+                bridgeFrequency: {
+                    key: 'bridgeFrequency',
+                    name: 'WDS Bridge Frequency',
+                    description: "Configuration Properties associated with the Wi-Fi Frequency being used for the WDS Bridge.",
+                    type: 'object',
+                    properties: {
+                        frequency: {
+                            key: 'frequency',
+                            name: 'Wi-Fi Frequency',
+                            description: "The Wi-Fi Frequency to use for the WDS Bridge.\n\nThe 'auto' and 'dynamic' options both select the most eligible Wi-Fi Frequency to use based on the Main Router, Bridge Router, and the available Reconnection Methods. However, the 'dynamic' option allows the Wi-Fi Frequency for the WDS Bridge to be changed at runtime while the 'auto' option does not.",
+                            type: 'string',
+                            defaultProgramVarValue: 'dynamic',
+                            validationFn: (value) => ['auto', 'dynamic', ...WIFI_FREQUENCY_LIST].includes(value as any)
+                        },
+                        preferredFrequency: {
+                            key: 'preferredFrequency',
+                            name: 'Preferred Wi-Fi Frequency',
+                            description: "When the `frequency` option is set to 'dynamic', this option specifies the Preferred Wi-Fi Frequency to use for the WDS Bridge.\n\nIf specified, the program will always attempt to use this Wi-Fi Frequency for the WDS Bridge wherever possible, re-establishing the WDS Bridge on the desired frequency if necessary.\n\nIf omitted, the program will not attempt to change the Wi-Fi Frequency used for the WDS Bridge unless the current frequency is unavailable.",
+                            type: 'string',
+                            validationFn: (value) => WIFI_FREQUENCY_LIST.includes(value as any)
                         }
                     }
                 }

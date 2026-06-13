@@ -736,7 +736,12 @@ export const RECONNECTION_METHOD = new ReconnectionMethod(
     ReconnectionMethod.MethodType.PUPPETEER,
     BRIDGE_ROUTER,
     reconnect,
-    setup
+    setup,
+    {
+        frequencies: {
+            "5GHz": true
+        }
+    }
 );
 export default RECONNECTION_METHOD;
 
