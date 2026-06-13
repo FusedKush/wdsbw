@@ -44,6 +44,10 @@ import {
 // import { BASE_PUPPETEER_SCREENSHOTS_PATH, ReconnectionMethod } from "../../api/index.js";
 import puppeteer, { BoxModel, Browser, Page } from "puppeteer";
 import { existsSync, mkdirSync } from "fs";
+import { scanForWifiNetwork } from "./common.js";
+
+
+type PuppeteerInstanceTuple = [Browser, Page];
 
 
 /**
@@ -63,6 +67,7 @@ const ELEMENT_SELECTORS = {
     wdsScanButton: '#survey_5g',
     wdsScanResultsTable: '#tableWlStat',
     wdsScanResultTableRows: '#tableWlStat tr:not(.head)',
+    wdsScanResultBackButton: '#back',
     wdsSaveSettingsButton: '#wdsSave_5g',
     loadingContainer: '#g-loading-container',
     loadingMask: '#mask',
@@ -80,6 +85,7 @@ const ROUTER_SCREENSHOT_PATH = `${BASE_PUPPETEER_SCREENSHOTS_PATH}/${BRIDGE_ROUT
 const getRouterManagementUrl = () => `http://${getProgramVars().bridgeRouter.ip}` as const;
 
 
+var currentInstance: PuppeteerInstanceTuple | null = null;
 /**
  * Indicates whether or not we are currently logged in
  * to the Bridge Router Management Interface.
@@ -92,7 +98,6 @@ const getRouterManagementUrl = () => `http://${getProgramVars().bridgeRouter.ip}
  * @see {@link logoutFromRouter `logoutFromRouter()`}
  */
 var loggedIn: boolean = false;
-
 
 /**
  * {@link Page.prototype.waitForSelector Wait} for a *Clickable Element* matching the specified `selector`
@@ -111,12 +116,18 @@ var loggedIn: boolean = false;
  * @throws          Rejects if either {@link Page.prototype.waitForSelector `waitForSelector()`}
  *                  or {@link Page.prototype.click `click()`} throw.
  */
-async function waitAndClick ( page: Page, selector: string ): Promise<void> {
+const waitAndClick = ( page: Page, selector: string ): Promise<void> => (
+    page.waitForSelector(selector, { visible: true, timeout: 10000 })
+        .then((selector) => {
 
-    await page.waitForSelector(selector, { visible: true });
-    await page.click(selector);
+            if (!selector)
+                throw new Error(`Failed to locate an element on the page matching the selector '${selector}'.`);
 
-}
+            return selector.click();
+
+        })
+
+);
 /**
  * {@link Page.prototype.waitForSelector Wait} for a *Clickable Element* matching the specified `selector`
  * to appear in the designated `page`, {@link Page.prototype.click click} it, and
@@ -233,25 +244,36 @@ async function screenshot ( page: Page, name: string ): Promise<boolean> {
  *              {@link Browser} instance followed by an associated
  *              {@link Page} handle.
  */
-async function createInstance (): Promise<[Browser, Page]> {
+async function createInstance (): Promise<PuppeteerInstanceTuple> {
 
-    let browser: Browser;
-    let page: Page;
-    
+    if (currentInstance)
+        return currentInstance;
+
     try {
-        browser = await puppeteer.launch({ slowMo: getProgramVars().reconnectionMethods.actionCooldown.puppeteer });
-        page = await browser.newPage();
+        let browser = await puppeteer.launch({
+            slowMo: getProgramVars().reconnectionMethods.actionCooldown.puppeteer
+        }).catch((error) => { throw error });
+        let page = await browser.newPage();
 
-        return [browser, page];
+        currentInstance = [browser, page];
+        return currentInstance;
     }
     catch (error) {
-        if (typeof browser! == 'object')
-            browser!.close();
+        if (currentInstance)
+            await closeInstance();
 
         if (!AbortError.isAbortError(error))
             throw new Error("Failed to create a new Puppeteer Browser Instance!", { cause: error });
         else
             throw error;
+    }
+
+}
+async function closeInstance (): Promise<void> {
+
+    if (currentInstance) {
+        await currentInstance[0].close();
+        currentInstance = null;
     }
 
 }
@@ -454,7 +476,7 @@ async function testLogin <
             signal,
             async () => {
 
-                [browser, page] = await createInstance();
+                [browser, page] = await createInstance().catch((error) => { throw error });
                 const result = await loginToRouter(page, signal);
             
                 if (logout)
@@ -487,8 +509,8 @@ async function testLogin <
         }
     }
     finally {
-        if (typeof browser! == 'object')
-            browser.close();
+        if (logout)
+            await closeInstance();
     }
 
 }
@@ -517,12 +539,13 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
                         await logoutFromRouter(page);
                     }
                 }
-    
-                await browser.close();
             }
         }
         catch (error) {
             verboseLog("[-] Failed to Log Out of the Management Interface:", error);
+        }
+        finally {
+            await closeInstance();
         }
 
     }
@@ -531,7 +554,7 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
 
         try {
             const programVars = getProgramVars();
-            [browser, page] = await createInstance();
+            [browser, page] = await createInstance().catch((error) => { throw error; });
 
             if (!loggedIn) {
                 loggedIn = ((await loginToRouter(page, signal)) === true);
@@ -541,11 +564,19 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
             }
 
             verboseLog("[+] Navigating to the WDS Settings Page...");
-            await processAction(waitAndClick, page, ELEMENT_SELECTORS.topAdvancedTab);
-            await processAction(waitAndClick, page, ELEMENT_SELECTORS.sideWirelessSettings);
-            await processAction(waitAndClick, page, ELEMENT_SELECTORS.sideAdvancedWirelessSettings);
-            await processAction(waitAndClick, page, ELEMENT_SELECTORS.wds5gTab);
-    
+
+            await processAction(
+                () => waitAndClick(page, ELEMENT_SELECTORS.topAdvancedTab)
+                    .then(() => waitAndClick(page, ELEMENT_SELECTORS.sideWirelessSettings))
+                    .then(() => waitAndClick(page, ELEMENT_SELECTORS.sideAdvancedWirelessSettings))
+                    .then(() => waitAndClick(page, ELEMENT_SELECTORS.wds5gTab))
+                    .catch((error) => {
+
+                        throw error;
+
+                    })
+            );
+
             await processAction(
                 page, '$eval',
                 ELEMENT_SELECTORS.wdsEnableBridgeControlCheckbox,
@@ -560,39 +591,84 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
             );
     
             verboseLog("[+] Scanning for Available Wi-Fi Networks...");
-            await processAction(waitAndClick, page, ELEMENT_SELECTORS.wdsScanButton);
-            await processAction(page, 'waitForSelector', ELEMENT_SELECTORS.wdsScanResultsTable);
-            let scanResults = await processAction(page, '$$', ELEMENT_SELECTORS.wdsScanResultTableRows);
-            let mainRouterResultIndex: number = -1;
+            // await processAction(waitAndClick, page, ELEMENT_SELECTORS.wdsScanButton);
+            // await processAction(page, 'waitForSelector', ELEMENT_SELECTORS.wdsScanResultsTable);
+            // let scanResults = await processAction(page, '$$', ELEMENT_SELECTORS.wdsScanResultTableRows);
+            // let mainRouterResultIndex: number = -1;
     
-            verboseLog("[+] Evaluating WDS Scan Results...");
+            // verboseLog("[+] Evaluating WDS Scan Results...");
     
-            for (let i = 0; i < scanResults.length; i++) {
-                mainRouterResultIndex = await processAction(
-                    scanResults[i], '$eval',
-                    'td:nth-child(3)',
-                    async ( element: HTMLTableCellElement, index: number, mainRouterSsid: string ) => (
-                        (element.innerText == mainRouterSsid)
-                            ? index
-                            : -1
-                    ),
-                    i, programVars.mainRouter.ssid
-                ) as number;
+            // for (let i = 0; i < scanResults.length; i++) {
+            //     mainRouterResultIndex = await processAction(
+            //         scanResults[i], '$eval',
+            //         'td:nth-child(3)',
+            //         async ( element: HTMLTableCellElement, index: number, mainRouterSsid: string ) => (
+            //             (element.innerText == mainRouterSsid)
+            //                 ? index
+            //                 : -1
+            //         ),
+            //         i, programVars.mainRouter.ssid
+            //     ) as number;
     
-                if (mainRouterResultIndex > -1)
-                    break;
-            }
+            //     if (mainRouterResultIndex > -1)
+            //         break;
+            // }
     
-            if (mainRouterResultIndex < 0)
-                throw new Error("The Main Router was not found in the WDS Scan Results!");
+            // if (mainRouterResultIndex < 0)
+            //     throw new Error("The Main Router was not found in the WDS Scan Results!");
     
-            verboseLog("[*] Main Router Found!");
-            await processAction(scanResults[mainRouterResultIndex], '$', 'td:last-child span').then(
+            const scanResultElement = await scanForWifiNetwork(
+                async () => {
+
+                    let result: puppeteer.ElementHandle<Element> | null = null;
+
+                    await waitAndClick(page, ELEMENT_SELECTORS.wdsScanButton)
+                        .then(() => page.waitForSelector(ELEMENT_SELECTORS.wdsScanResultsTable))
+                        .catch((error) => { throw error; });
+                    // await processAction(
+                    //     () => waitAndClick(page, ELEMENT_SELECTORS.wdsScanButton)
+                    //         .then(() => page.waitForSelector(ELEMENT_SELECTORS.wdsScanResultsTable))
+                    //         // .catch((error) => { throw error; })
+                    // ).catch((error) => { throw error; });
+                    // await processAction(waitAndClick, page, ELEMENT_SELECTORS.wdsScanButton)
+                    //     .catch((error) => { throw error; });
+                    // await processAction(page, 'waitForSelector', ELEMENT_SELECTORS.wdsScanResultsTable);
+                    let scanResults = await processAction(page, '$$', ELEMENT_SELECTORS.wdsScanResultTableRows);
+            
+                    // verboseLog("[+] Evaluating WDS Scan Results...");
+            
+                    for (let i = 0; i < scanResults.length; i++) {
+                        result = await processAction(
+                            scanResults[i], '$eval',
+                            'td:nth-child(3)',
+                            async ( element: HTMLTableCellElement, mainRouterSsid: string ) => (
+                                (element.innerText == mainRouterSsid)
+                                    ? element
+                                    : null
+                            ),
+                            scanResults[i], programVars.mainRouter.ssid
+                        ) as puppeteer.ElementHandle<Element> | null;
+            
+                        if (result)
+                            return result;
+                    }
+                    
+                    if (!result)
+                        waitAndClick(page, ELEMENT_SELECTORS.wdsScanResultBackButton);
+
+                },
+                RECONNECTION_METHOD
+            ).catch((error) => { throw error });
+
+            // verboseLog("[*] Main Router Found!");
+            await processAction(scanResultElement, '$', 'td:last-child span').then(
                 (element) => element!.click()
             );
     
             verboseLog("[+] Re-Establishing the WDS Bridge...");
-            await waitAndClick(page, ELEMENT_SELECTORS.wdsSaveSettingsButton);
+            await waitAndClick(page, ELEMENT_SELECTORS.wdsSaveSettingsButton).catch(
+                (error) => { throw error; }
+            );
     
             if (await checkForAlerts(page))
                 await page.click(ELEMENT_SELECTORS.alertConfirmationButton);
@@ -603,22 +679,22 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
             await screenshot(page, 'success');
         }
         catch (error) {
-            if (error instanceof UnrecoverableError) {
+            if (typeof page != 'undefined')
+                await screenshot(page, 'reconnect-error');
+
+            await cleanup();
+
+            if (error instanceof UnrecoverableError || error instanceof ReconnectionMethod.MainRouterError) {
                 return reject(error);
             }
-            else if ( !AbortError.isAbortError(error) ) {
-                console.error("Failed to Reconnect the WDS Bridge:", error);
-    
-                if (typeof page! != 'undefined')
-                    await screenshot(page, 'reconnect-error');
-            }
-            else {
+            else if (AbortError.isAbortError(error)) {
                 return resolve('aborted');
             }
+            else {
+                console.error("Failed to Reconnect the WDS Bridge:", error);
+                return resolve(success);
+            }
         }
-    
-        await cleanup();
-        resolve(success);
 
     });
 
@@ -633,12 +709,17 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal, actionCooldo
 const setup: ReconnectionMethod.SetupFunction = (wasDeferred, signal): AbortableAsyncOperation<boolean> => new Promise(
     async (resolve, reject) => {
 
-        const loginResult = await testLogin(!wasDeferred, signal).catch(() => false);
+        const loginResult = await testLogin(!wasDeferred, signal).catch((error) => reject(new Error(
+            `The Specified Login Credentials are invalid: ${(error as Error).message}`,
+            { cause: error }
+        )));
 
-        if (loginResult === false)
-            return reject(new Error("The Specified Login Credentials are invalid."));
-
-        return resolve(loginResult);
+        if (typeof loginResult == 'boolean') {
+            if (loginResult === false)
+                return reject(new Error("The Specified Login Credentials are invalid."));
+    
+            return resolve(loginResult);
+        }
 
     }
 );
@@ -649,7 +730,7 @@ const setup: ReconnectionMethod.SetupFunction = (wasDeferred, signal): Abortable
  * re-establishing the WDS Bridge by programatically navigating through
  * the Browser-Based Router Management Interface.
  */
-export default new ReconnectionMethod(
+export const RECONNECTION_METHOD = new ReconnectionMethod(
     RECONNECTION_METHOD_NAME,
     'Puppeteer',
     ReconnectionMethod.MethodType.PUPPETEER,
@@ -657,6 +738,7 @@ export default new ReconnectionMethod(
     reconnect,
     setup
 );
+export default RECONNECTION_METHOD;
 
 // /**
 //  * The {@link ReconnectionMethod} definition for the

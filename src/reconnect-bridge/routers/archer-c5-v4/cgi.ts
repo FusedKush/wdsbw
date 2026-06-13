@@ -82,6 +82,7 @@ import NodeRSA from "node-rsa";
 import puppeteer from "puppeteer";
 import { RawEnvironmentVariables } from "../../../env.js";
 import { BaseProgramConfiguration, ProgramConfiguration } from "../../../config.js";
+import { scanForWifiNetwork } from "./common.js";
 
 
 /* General Types */
@@ -379,30 +380,34 @@ namespace LoginCredentials {
  * 
  * @template NameT  The type of the {@link LoginCredentialProvider.name name} property.
  */
-interface LoginCredentialProvider <NameT extends LoginCredentialProvider.ProviderName = LoginCredentialProvider.ProviderName> {
+class LoginCredentialProvider <
+    NameT extends LoginCredentialProvider.ProviderName = LoginCredentialProvider.ProviderName
+> implements LoginCredentialProvider.ProviderDetails {
+
+    readonly name: NameT;
+    readonly method: string;
+    readonly supplier: LoginCredentialProvider.ProviderFunction;
+
+
+    constructor ( details: LoginCredentialProvider.ProviderDetails ) {
+
+        const PROPERTIES = (['name', 'method', 'supplier'] as const satisfies (keyof LoginCredentialProvider.ProviderDetails)[]);
+
+        for (const property in details)
+            if (PROPERTIES.includes(property as any))
+                this[property] = details[property];
+
+    }
+
 
     /**
-     * The {@link LoginCredentialProviderName Unique Name}
-     * of the Login Credential Provider.
-     * 
-     * @see {@link LoginCredentialProviderName}
-     * @see {@link method}
+     * @override
      */
-    readonly name: NameT;
-    /**
-     * The Human-Readable Name of or method used by
-     * the Login Credential Provider.
-     * 
-     * @see {@link LoginCredentialProvider.name name}
-     */
-    readonly method: string;
-    /**
-     * The {@link LoginCredentialProviderFunction Login Credential Provider Function}
-     * containing the logic of the Login Credential Provider.
-     * 
-     * @see {@link LoginCredentialProviderFunction}
-     */
-    readonly supplier: LoginCredentialProvider.ProviderFunction;
+    toString (): string {
+
+        return `'${this.name}' (${this.method})`;   
+
+    }
 
 }
 namespace LoginCredentialProvider {
@@ -480,6 +485,33 @@ namespace LoginCredentialProvider {
     export type ProviderMap = {
         [Name in ProviderName]: LoginCredentialProvider<Name>;
     };
+
+    export interface ProviderDetails <NameT extends ProviderName = ProviderName> {
+
+        /**
+         * The {@link LoginCredentialProviderName Unique Name}
+         * of the Login Credential Provider.
+         * 
+         * @see {@link LoginCredentialProviderName}
+         * @see {@link method}
+         */
+        name: NameT;
+        /**
+         * The Human-Readable Name of or method used by
+         * the Login Credential Provider.
+         * 
+         * @see {@link LoginCredentialProvider.name name}
+         */
+        method: string;
+        /**
+         * The {@link LoginCredentialProviderFunction Login Credential Provider Function}
+         * containing the logic of the Login Credential Provider.
+         * 
+         * @see {@link LoginCredentialProviderFunction}
+         */
+        supplier: LoginCredentialProvider.ProviderFunction;
+
+    }
 
 }
 
@@ -848,7 +880,7 @@ Enable`
  */
 const LOGIN_CREDENTIAL_PROVIDERS = {
 
-    [LoginCredentialProvider.ProviderName.ENV_VARS]: {
+    [LoginCredentialProvider.ProviderName.ENV_VARS]: new LoginCredentialProvider({
         name: LoginCredentialProvider.ProviderName.ENV_VARS,
         method: "Environment Variables",
         supplier: () => {
@@ -874,9 +906,9 @@ const LOGIN_CREDENTIAL_PROVIDERS = {
             }
 
         }
-    },
+    }),
 
-    [LoginCredentialProvider.ProviderName.MANUAL_ENCRYPTION]: {
+    [LoginCredentialProvider.ProviderName.MANUAL_ENCRYPTION]: new LoginCredentialProvider({
         name: LoginCredentialProvider.ProviderName.MANUAL_ENCRYPTION,
         method: "Manual Encryption",
         supplier: async (plaintextUsername, plaintextPassword) => {
@@ -908,9 +940,9 @@ const LOGIN_CREDENTIAL_PROVIDERS = {
             };
                 
         }
-    },
+    }),
 
-    [LoginCredentialProvider.ProviderName.BROWSER_ENCRYPTION]: {
+    [LoginCredentialProvider.ProviderName.BROWSER_ENCRYPTION]: new LoginCredentialProvider({
         name: LoginCredentialProvider.ProviderName.BROWSER_ENCRYPTION,
         method: "Browser Encryption",
         supplier: async (plaintextUsername, plaintextPassword) => {
@@ -948,9 +980,9 @@ const LOGIN_CREDENTIAL_PROVIDERS = {
             }
 
         }
-    },
+    }),
 
-    [LoginCredentialProvider.ProviderName.CACHED_CREDENTIALS]: {
+    [LoginCredentialProvider.ProviderName.CACHED_CREDENTIALS]: new LoginCredentialProvider({
         name: LoginCredentialProvider.ProviderName.CACHED_CREDENTIALS,
         method: "Cached Login Credentials",
         supplier: () => {
@@ -961,7 +993,7 @@ const LOGIN_CREDENTIAL_PROVIDERS = {
             return encryptedLoginCredentials;
 
         }
-    }
+    })
 
 } as const satisfies LoginCredentialProvider.ProviderMap;
 
@@ -1083,6 +1115,7 @@ const makeRequest = ( options: HttpRequestOptions = {} ): Promise<HttpResponse> 
 
     const MAX_INTERNAL_SERVER_ERROR_RETRIES = 3;
 
+    const signalHandlerController = new AbortController();
     let timestamps: RequestTimestamps = {
         requestInit: dayjs(),
         requestStart: null,
@@ -1091,7 +1124,7 @@ const makeRequest = ( options: HttpRequestOptions = {} ): Promise<HttpResponse> 
         responseComplete: null
     };
 
-    return new Promise((resolve, reject) => {
+    return new Promise<HttpResponse>((resolve, reject) => {
         
         const programVars = customEnvVarManager.getProgramVars();
         let requestAttempts = 0;
@@ -1231,7 +1264,7 @@ const makeRequest = ( options: HttpRequestOptions = {} ): Promise<HttpResponse> 
                     throw new LogicError("An HTTP Request Queue Processing Timeout is already in-use!");
 
                 if (options.signal)
-                    options.signal.addEventListener('abort', abortHandler);
+                    options.signal.addEventListener('abort', abortHandler, { once: true, signal: signalHandlerController.signal });
 
                 verboseDataLog(`Next Enqueued Request in ${duration}ms.`);
                 requestQueueProcessingTimeout = setTimeout(timeoutHandler, duration);
@@ -1445,7 +1478,7 @@ const makeRequest = ( options: HttpRequestOptions = {} ): Promise<HttpResponse> 
             reject(error);
         }
 
-    });
+    }).finally(signalHandlerController.abort.bind(signalHandlerController));
 
 };
 
@@ -1680,7 +1713,7 @@ async function loginToRouter ( credentialSupplier?: LoginCredentialProvider ): P
     if (loggedIn)
         return true;
 
-    verboseLog(`[+] Attempting to login to the Router Management Interface...`);
+    verboseLog(`[+] Attempting to login to the Router Management Interface${credentialSupplier ? ` using the ${colorizeOutput(credentialSupplier.toString(), ForegroundColor.GREEN)} Credential Supplier` : ''}...`);
 
     if (credentialSupplier) {
         try {
@@ -1690,12 +1723,14 @@ async function loginToRouter ( credentialSupplier?: LoginCredentialProvider ): P
             // Attempt to login to the Router Management Interface
             if (encryptedCredentials !== null)
                 return await login(encryptedCredentials);
-    
+            
             verboseLog(`The '${credentialSupplier.method}' Credential Supplier returned ${colorizeOutput(null)}.`);
         }
         catch (error) {
             console.error(`Failed to Login to the Router Management Interface using the '${credentialSupplier.method}' method:`, error);
         }
+
+        return false;
     }
     else {
         let encryptedCredentials = await getLoginCredentials(false, false);
@@ -1818,13 +1853,13 @@ async function getLoginCredentials <
         loggedIn = await loginToRouter(LOGIN_CREDENTIAL_PROVIDERS[currentCredentialSupplier]);
 
         if (!loggedIn) {
-            if (currentCredentialSupplier == 'cachedCredentials' && encryptedLoginCredentials) {
+            if (currentCredentialSupplier == LoginCredentialProvider.ProviderName.CACHED_CREDENTIALS && encryptedLoginCredentials) {
                 encryptedLoginCredentials = null;
                 verboseLog("Cached CGI Login Credentials are Stale! Attempting to generate new credentials...");
             }
 
             loginAttempts++;
-            currentCredentialSupplier = ObjectUtils.nextKey(LOGIN_CREDENTIAL_PROVIDERS, currentCredentialSupplier)!;
+            currentCredentialSupplier = ObjectUtils.nextKey(LOGIN_CREDENTIAL_PROVIDERS, currentCredentialSupplier, true)!;
         }
         else {
             loginCredentials = encryptedLoginCredentials;
@@ -1835,7 +1870,11 @@ async function getLoginCredentials <
         if (logout)
             await logoutFromRouter();
 
-        verboseLog(`[+] Successfully Retrieved Valid Login Credentials from the '${currentCredentialSupplier}' (${LOGIN_CREDENTIAL_PROVIDERS[currentCredentialSupplier].method}) Login Credential Provider!`);
+        verboseLog(
+            "[+] Successfully Retrieved Valid Login Credentials from the",
+            colorizeOutput(`'${LOGIN_CREDENTIAL_PROVIDERS[currentCredentialSupplier]}'`, ForegroundColor.GREEN),
+            "Login Credential Provider!"
+        );
         verboseDataLog(loginCredentials);
     }
     else if (existingCredentials) {
@@ -1927,7 +1966,26 @@ async function scanWifiNetworks (): Promise<WifiNetworkScanResultSet | null> {
  * @link [*Retrieving the Main Router Wi-Fi Network Properties*](./cgi-reference.md)
  * @see {@link scanWifiNetworks `scanWifiNetworks()`}
  */
-const getMainRouterWifiNetworkProperties = (): Promise<WifiNetworkScanResult | null> => new Promise(
+const getMainRouterWifiNetworkProperties = async (): Promise<WifiNetworkScanResult | null> => {
+
+    const programVars = customEnvVarManager.getProgramVars();
+
+    verboseLog("[+] Attempting to Retrieve the Main Router Wi-Fi Network Properties...");
+    return scanForWifiNetwork(
+        async () => {
+
+            const networks = await scanWifiNetworks();
+
+            if (networks && programVars.mainRouter.ssid in networks) {
+                verboseDataLog(networks[programVars.mainRouter.ssid]);
+                return networks[programVars.mainRouter.ssid];
+            }
+
+        },
+        RECONNECTION_METHOD
+    ).catch((error) => { throw error });
+
+} /* new Promise(
     async (resolve, reject) => {
 
         const MAX_RETRIES = 2;
@@ -1965,7 +2023,7 @@ const getMainRouterWifiNetworkProperties = (): Promise<WifiNetworkScanResult | n
         scan();
 
     }
-);
+); */
 
 /**
  * Retrieve the Bridge Router Wi-Fi Network Properties from the Bridge Router CGI.
@@ -2389,14 +2447,14 @@ const reconnect: ReconnectionMethod.ReconnectionFunction = (signal): Reconnectio
             return settlePromise(true);
         }
         catch (error) {
-            if (error instanceof UnrecoverableError) {
+            if (error instanceof UnrecoverableError || error instanceof ReconnectionMethod.MainRouterError) {
                 return settlePromise(error);
             }
-            else if ( !AbortError.isAbortError(error) ) {
-                console.error("Failed to Re-Establish the WDS Bridge:", error);
+            else if (AbortError.isAbortError(error)) {
+                return settlePromise('aborted');
             }
             else {
-                return settlePromise('aborted');
+                console.error("Failed to Re-Establish the WDS Bridge:", error);
             }
         }
 
